@@ -5,14 +5,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import TYPE_CHECKING
 
 from ics_tools.constants import FREQUENCIES, RFC_VERSION, WEEKDAY_TO_INT
-from ics_tools.models import Calendar, Component, Event
-from ics_tools.parser import parse_content_line, unfold_lines
-
-if TYPE_CHECKING:
-    from ics_tools.timezone import TimezoneResolver
+from ics_tools.models import Calendar, Component
+from ics_tools.parser import unfold_lines
 
 
 @dataclass
@@ -132,6 +128,13 @@ def _validate_datetime_value(val: str, result: ValidationResult, comp_name: str,
 
 def _validate_rrule(rrule_val: str, result: ValidationResult, comp_name: str) -> None:
     """Validate RFC 5545 RRULE syntax and constraints."""
+    from ics_tools.exceptions import ParseError, RRuleError
+    from ics_tools.rrule import parse_rrule
+
+    try:
+        parse_rrule(rrule_val)
+    except (ParseError, RRuleError, ValueError) as err:
+        result.add_error(str(err), component=comp_name, property_name="RRULE")
     parts = rrule_val.split(";")
     kv: dict[str, str] = {}
     for part in parts:
@@ -265,7 +268,7 @@ def validate_calendar(source: str | bytes | Calendar) -> ValidationResult:
     # Validate raw stream
     try:
         raw_lines = unfold_lines(source)
-    except Exception as err:
+    except Exception as err:  # noqa: BLE001 - Public boundary reports errors without a traceback.
         result.add_error(f"Failed to unfold stream: {err}")
         return result
 
@@ -288,7 +291,7 @@ def validate_calendar(source: str | bytes | Calendar) -> ValidationResult:
     try:
         raw_comp = parse_raw_component(source)
         validate_calendar_component(raw_comp, result)
-    except Exception as err:
+    except Exception as err:  # noqa: BLE001 - Public boundary reports errors without a traceback.
         result.add_error(f"Stream parsing error: {err}")
 
     return result

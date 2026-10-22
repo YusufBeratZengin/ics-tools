@@ -1,216 +1,152 @@
 # ics-tools
+[![CI](https://github.com/YusufBeratZengin/ics-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/YusufBeratZengin/ics-tools/actions/workflows/ci.yml) [![PyPI](https://img.shields.io/pypi/v/ics-tools)](https://pypi.org/project/ics-tools/) [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml) [![Dependencies](https://img.shields.io/badge/runtime_dependencies-0-green)](pyproject.toml)
 
-Python library and command-line interface to parse, merge, filter, and validate iCalendar (.ics) files, including RFC 5545 recurring event (RRULE) expansion.
+Parse, merge, filter, validate, and export iCalendar (.ics) files, with recurring event expansion.
+A typed Python library and CLI with zero runtime dependencies; calendar processing stays local.
+[English](README.md) | [Türkçe](README.tr.md)
 
-Zero runtime dependencies. Built on the Python standard library with `zoneinfo`.
+Install from a checkout: `python -m pip install .`
+Try it: `python -m ics_tools validate examples/demo.ics`
 
-Read this documentation in Turkish: [README.tr.md](README.tr.md).
+## Demo
 
-## Features
+Run the included synthetic calendar example:
 
-- **RFC 5545 Parser and Lexer**: Unfolds lines, parses property parameters and quoted values, and unescapes text according to section 3.3.11.
-- **Byte-Stable Serializer**: Deterministic output with strict CRLF line endings and UTF-8 safe line folding at 75 octets.
-- **Recurrence Engine (RRULE)**: Expands occurrences within bounded time windows supporting `FREQ` (`DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY`), `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` (including numeric ordinals like `2TU` and `-1SU`), `BYMONTHDAY`, `BYMONTH`, `BYSETPOS`, `EXDATE`, `RDATE`, and overridden events via `RECURRENCE-ID`.
-- **Timezone Resolution**: Prefers standard IANA `TZID` mapping via `zoneinfo`. Includes built-in fallbacks for embedded `VTIMEZONE` components and legacy Windows timezone names.
-- **CLI Commands**:
-  - `ics merge`: Combine multiple calendars with deduplication by `(UID, RECURRENCE-ID)` and sequence-aware conflict resolution.
-  - `ics filter`: Filter events by date range and regex pattern matching.
-  - `ics list`: Display expanded occurrences within a time window with optional timezone translation.
-  - `ics validate`: Strict RFC 5545 compliance validation reporting errors and warnings.
-  - `ics to-csv`: Export events or expanded occurrences to CSV format.
-
-## Requirements
-
-- Python >= 3.10
-- Zero runtime dependencies
-
-## Installation
-
-```bash
-pip install ics-tools
+```sh
+python examples/demo.py
 ```
 
-Or install in editable mode from source:
-
-```bash
-git clone https://github.com/YusufBeratZengin/ics-tools.git
-cd ics-tools
-pip install -e .
-```
-
-## CLI Usage
-
-### 1. Merge Calendars with Deduplication
-
-Merges multiple iCalendar files into one. Duplicate events sharing the same `UID` and `RECURRENCE-ID` are resolved in favor of higher `SEQUENCE` or newer `LAST-MODIFIED` timestamps. Duplicate `VTIMEZONE` blocks are consolidated.
-
-```bash
-ics merge calendar1.ics calendar2.ics -o merged.ics
-```
-
-### 2. Filter Events
-
-Filter events matching a regular expression (across summary, description, and location) or falling within a specific date/time window:
-
-```bash
-# Filter by date range (ISO 8601)
-ics filter --from 2026-11-01 --to 2026-11-30 input.ics -o filtered.ics
-
-# Filter by regex match
-ics filter --match "Sprint Planning" input.ics -o planning.ics
-
-# Read from stdin and pipe to file
-cat input.ics | ics filter --match "Design" > output.ics
-```
-
-### 3. List Expanded Occurrences
-
-List upcoming event occurrences within a specified duration window (e.g., `30d`, `2w`, `24h`), automatically expanding recurring series and converting times to a target timezone:
-
-```bash
-ics list --window 30d --tz Europe/Istanbul input.ics
-```
-
-Example output:
+Actual output (DAILY with COUNT, EXDATE, and RDATE):
 
 ```text
-START                END                  SUMMARY                        LOCATION            
----------------------------------------------------------------------------------------------
-2026-11-01 12:00     2026-11-01 13:00     Q4 Sprint Planning             Meeting Room 3B     
-2026-11-02 17:00     2026-11-02 18:00     Developer Office Hours         Online Zoom         
+Parsed 1 event
+2026-01-01T09:00:00+00:00 | Demo sync
+2026-01-03T09:00:00+00:00 | Demo sync
+2026-01-05T09:00:00+00:00 | Demo sync
 ```
 
-### 4. Validate RFC 5545 Compliance
+## Install
 
-Check one or more `.ics` files against RFC 5545 requirements, verifying structural delimiters, required properties, date-time formats, and RRULE syntax:
+Requires Python 3.10 or later. Run the install command above from the repository root.
+The build uses Hatchling; installation needs an available package index or a provisioned build backend.
+The PyPI badge reflects registry availability; adding a publish workflow does not itself create a release.
+The installed `ics` command is equivalent to `python -m ics_tools`.
 
-```bash
-ics validate calendar.ics
+## Usage
+
+### CLI
+
+Merge deduplicates by `(UID, RECURRENCE-ID)`, preferring higher SEQUENCE, then newer
+LAST-MODIFIED and DTSTAMP, then the later input. Filter searches summary, description,
+location, and categories (case insensitive by default). List expands recurring instances.
+Validation returns 0 for valid input and 1 for errors; warnings alone do not fail it.
+All examples use synthetic data and write generated files under `is/`.
+
+```sh
+python -m ics_tools merge examples/demo.ics examples/demo.ics -o is/merged.ics
+python -m ics_tools filter examples/demo.ics --from 2026-01-01 --to 2026-01-07 --match Demo -o is/filtered.ics
+python -m ics_tools list examples/demo.ics --from 2026-01-01 --window 30d --tz Europe/Istanbul
+python -m ics_tools validate examples/demo.ics
+python -m ics_tools to-csv examples/demo.ics --from 2026-01-01 --window 30d --tz Europe/Istanbul -o is/events.csv
+python -m ics_tools to-csv examples/demo.ics --raw -o is/events-raw.csv
 ```
 
-Exit code is `0` when all files are valid, and `1` when syntax or semantic errors are encountered.
+Filter, list, and to-csv accept `-` or omitted input to read stdin. Omit `-o` for stdout.
+CSV columns are UID, Summary, Description, Location, Start, End, Duration, AllDay,
+Status, and RecurrenceId. CSV expands recurrences when a date bound or window is supplied;
+without bounds it exports raw records. `--raw` always exports raw records.
 
-### 5. Export to CSV
-
-Export calendar occurrences to CSV format for analysis in spreadsheets or data pipelines:
-
-```bash
-ics to-csv input.ics -o events.csv --window 30d --tz Europe/Istanbul
-```
-
-CSV fields include: `UID`, `Summary`, `Description`, `Location`, `Start`, `End`, `Duration`, `AllDay`, `Status`, `RecurrenceId`.
-
-To export raw event records without expanding recurrences, add the `--raw` flag:
-
-```bash
-ics to-csv input.ics -o raw_events.csv --raw
-```
-
-## Python Library Usage
-
-### Parsing an iCalendar Stream
+### Python API
 
 ```python
-from ics_tools import parse_calendar
-
-with open("schedule.ics", "r", encoding="utf-8") as f:
-    calendar = parse_calendar(f)
-
-for event in calendar.events:
-    print(f"{event.summary} | Start: {event.dtstart} | Duration: {event.effective_duration}")
-```
-
-### Expanding Recurring Events (RRULE)
-
-```python
-from datetime import datetime, timezone
-from ics_tools import parse_calendar, expand_event
-
-calendar = parse_calendar(open("schedule.ics", "r", encoding="utf-8"))
-
-window_start = datetime(2026, 11, 1, 0, 0, tzinfo=timezone.utc)
-window_end = datetime(2026, 11, 30, 23, 59, tzinfo=timezone.utc)
-
-for event in calendar.events:
-    if event.rrule:
-        occurrences = expand_event(event, window_start, window_end)
-        for occ in occurrences:
-            print(f"Occurrence: {occ.start} -> {occ.end} ({occ.summary})")
-```
-
-### Creating and Serializing Calendars
-
-```python
-from datetime import datetime, timezone
-from ics_tools import Calendar, Event, serialize_calendar
-
-cal = Calendar(prodid="-//Custom App//EN")
-
-event = Event(
-    uid="unique-id-12345@example.com",
-    summary="Architecture Review",
-    description="Reviewing RFC 5545 serialization engine.",
-    dtstart=datetime(2026, 11, 15, 14, 0, tzinfo=timezone.utc),
-    dtend=datetime(2026, 11, 15, 15, 30, tzinfo=timezone.utc),
-    location="Conference Room Alpha",
+from datetime import date
+from pathlib import Path
+from ics_tools import (
+    expand_event, export_to_csv, filter_calendar, merge_calendars,
+    parse_calendar, serialize_calendar, validate_calendar,
 )
 
-cal.add_event(event)
-
-ics_content = serialize_calendar(cal)
-with open("output.ics", "w", encoding="utf-8", newline="") as f:
-    f.write(ics_content)
+calendar = parse_calendar(Path("examples/demo.ics"))
+occurrences = expand_event(calendar.events[0], date(2026, 1, 1), date(2026, 1, 7))
+assert len(occurrences) == 3
+merged = merge_calendars([calendar, calendar])
+filtered = filter_calendar(merged, pattern="Demo")
+assert validate_calendar(serialize_calendar(filtered)).is_valid
+csv_text = export_to_csv(filtered, window_start=date(2026, 1, 1), window_end=date(2026, 1, 7))
+assert "Demo sync" in csv_text
 ```
 
-### Merging and Filtering via Python API
+`parse_calendar` accepts text, UTF-8 bytes, a `Path`, or a text stream.
+`Calendar` and `Event` can also be constructed directly. `serialize_calendar` returns
+CRLF text; use `serialize_calendar_bytes` or open text output with `newline=""` to preserve it.
+`export_to_csv` returns text; when passed `output`, it writes to the stream and returns an empty string.
 
-```python
-from ics_tools import merge_calendars, filter_calendar, parse_calendar
+## Examples
 
-cal1 = parse_calendar(open("work.ics", "r", encoding="utf-8"))
-cal2 = parse_calendar(open("personal.ics", "r", encoding="utf-8"))
+[examples/demo.py](examples/demo.py) and [examples/demo.ics](examples/demo.ics) are runnable,
+synthetic examples. The test fixtures imitate common Google, Apple, Outlook, and Thunderbird exports;
+they are authored test data, not actual user exports.
 
-# Merge with deduplication
-merged = merge_calendars([cal1, cal2])
+## Configuration / options
 
-# Filter by regex
-filtered = filter_calendar(merged, pattern="Planning")
+| Option or rule | Behavior |
+| --- | --- |
+| `--from`, `--to` | ISO date or datetime bounds; a date denotes midnight |
+| `--window` | `30d`, `2w`, `24h`, or `1m` (30 days); explicit `--to` takes priority |
+| `--tz` | IANA or supported Windows timezone name for list / CSV output |
+| `--match`, `--case-sensitive` | Regex filter, optionally case sensitive |
+| `-o`, `--output` | Output file; parent directories are created |
+| `--raw` | CSV records without recurrence expansion |
+| RRULE | DAILY, WEEKLY, MONTHLY, YEARLY; INTERVAL, COUNT, UNTIL, BYDAY, BYMONTHDAY, BYMONTH, BYSETPOS, WKST |
+| Exceptions | EXDATE, RDATE (DATE / DATE-TIME), and RECURRENCE-ID overrides, including cancellations |
+
+## How it works
+
+The parser unfolds lines, handles escaped text and quoted parameters, and preserves unknown properties.
+The writer orders properties deterministically, folds UTF-8 at 75 octets, and emits CRLF.
+A missing Event DTSTAMP is assigned on its first serialization and reused on subsequent writes.
+Recurrence filters operate on each frequency period before BYSETPOS. COUNT, UNTIL, and the
+expansion window all bound generation. IANA timezone data takes priority over fallbacks.
+
+## Limitations / privacy
+
+Processing is offline; no calendar data is uploaded. Keep private calendars out of issues and fixtures.
+This is a practical RFC 5545 subset, not a complete RFC compliance checker: expansion supports
+DAILY through YEARLY, and RDATE PERIOD values, BYHOUR/BYMINUTE/BYSECOND/BYYEARDAY/BYWEEKNO,
+and RANGE=THISANDFUTURE are unsupported. Validation checks structure, key required fields,
+date syntax, and supported recurrence ranges; it does not validate every RFC constraint.
+
+Embedded VTIMEZONE fallback extracts offsets and uses an approximate northern-hemisphere daylight-saving season;
+it does not interpret historical transitions or the component's transition RRULEs. Common timezone
+fallbacks have the same limits when the system IANA database is missing (often on Windows).
+Unknown TZIDs log a warning and use UTC. Floating datetimes use UTC for comparisons;
+provide aware datetimes for predictable conversions. Date window bounds are inclusive with interval
+overlap; use a datetime for the end of a full day. Unbounded generators must be consumed lazily
+or supplied with a COUNT, UNTIL, or window end. Expansion scans from DTSTART; very old series
+with large windows can be expensive.
+
+## Development
+
+From a checkout, install the development extras and run:
+
+```sh
+python -m pip install -e ".[dev]"
+python -m ruff check .
+python -m mypy src
+python -m pytest -q
+python -m build
+python -m twine check dist/*
 ```
 
-### Validating iCalendar Content
+CI covers Python 3.10–3.13 on Linux and Windows. Tests use no network.
+The optional pytest cache plugin is disabled to support restricted workspaces.
 
-```python
-from ics_tools import validate_calendar
+## Contributing
 
-result = validate_calendar(open("test.ics", "r", encoding="utf-8").read())
-if result.is_valid:
-    print("Calendar is RFC 5545 compliant.")
-else:
-    for err in result.errors:
-        print(f"Error: {err}")
-```
-
-## Architecture and RFC 5545 Conformance
-
-- **Line Folding**: RFC 5545 Section 3.1 states content lines should not exceed 75 octets. The serializer cuts text at valid UTF-8 boundaries to prevent corrupting multibyte characters and prepends continuation lines with a single ASCII space.
-- **Line Endings**: Serialized files strictly use CRLF (`\r\n`).
-- **Timezones**: Timezone identifiers (`TZID`) are resolved using Python's standard `zoneinfo.ZoneInfo`. If an IANA database is unavailable in the environment (e.g. Windows without tzdata), a documented fallback maps common timezones and extracts offsets from embedded `VTIMEZONE` components.
-- **Recurrence Engine**: Supports RFC 5545 rule components: `FREQ`, `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` (with numeric ordinals), `BYMONTHDAY`, `BYMONTH`, `BYSETPOS`, `EXDATE`, `RDATE`, and `RECURRENCE-ID` overrides.
-
-## Running Tests
-
-Run the test suite using pytest:
-
-```bash
-python -m pytest -v
-```
-
-Or run directly with the Python standard library unittest runner (no extra packages needed):
-
-```bash
-python -m unittest discover -s tests -v
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for checks, commit conventions, and the maintainer's
+release procedure. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations
+and [SECURITY.md](SECURITY.md) for private vulnerability reports.
 
 ## License
 
-MIT License. Copyright (c) 2026 Yusuf Berat Zengin. See [LICENSE](LICENSE) for details.
+[MIT](LICENSE). Copyright (c) 2026 Yusuf Berat Zengin.

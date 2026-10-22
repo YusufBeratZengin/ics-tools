@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import date, datetime, timedelta, timezone, tzinfo
+from datetime import date, datetime, timezone, tzinfo
 from typing import TYPE_CHECKING
-from zoneinfo import ZoneInfo
 
 from ics_tools.models import Calendar, Event
 from ics_tools.rrule import expand_event
@@ -57,9 +56,10 @@ def export_to_csv(
 ) -> str:
     """Export calendar events to CSV format.
 
-    If output is provided, writes directly to it; returns the CSV string.
+    Return the CSV string, or write to output and return an empty string.
     """
-    buffer = output if output is not None else io.StringIO()
+    string_buffer = io.StringIO()
+    buffer = output if output is not None else string_buffer
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(CSV_COLUMNS)
 
@@ -68,7 +68,7 @@ def export_to_csv(
     if target_tz:
         try:
             tz_obj = resolver.resolve(target_tz)
-        except Exception:
+        except Exception:  # noqa: BLE001 - Preserve fallback for custom resolvers.
             tz_obj = None
 
     # Overrides map
@@ -123,5 +123,5 @@ def export_to_csv(
             ])
 
     if output is None:
-        return buffer.getvalue()
+        return string_buffer.getvalue()
     return ""

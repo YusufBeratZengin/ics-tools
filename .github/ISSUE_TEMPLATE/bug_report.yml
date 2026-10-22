@@ -1,0 +1,42 @@
+name: Bug report
+description: Report a reproducible defect using synthetic calendar data.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and Python version
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include a minimal synthetic ICS example and the command or API call.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Remove private calendar information and secrets.
+      render: text
+  - type: checkboxes
+    id: existing
+    attributes:
+      label: Existing issues
+      options:
+        - label: I searched existing issues
+          required: true

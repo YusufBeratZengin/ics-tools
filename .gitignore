@@ -45,3 +45,11 @@ htmlcov/
 # OS artifacts
 .DS_Store
 Thumbs.db
+is/
+
+# Tool caches and sensitive local files
+.ruff_cache/
+.mypy_cache/
+.env*
+*.pem
+*.key

@@ -1,9 +1,9 @@
 """Tests for calendar merging and deduplication."""
 
-from pathlib import Path
 import sys
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 

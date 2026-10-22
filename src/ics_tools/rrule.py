@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import calendar
 import re
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone, tzinfo
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING
 
 from ics_tools.constants import FREQUENCIES, WEEKDAY_TO_INT
 from ics_tools.exceptions import RRuleError
@@ -111,6 +112,8 @@ def parse_rrule(rrule_str: str, tz_resolver: TimezoneResolver | None = None) -> 
                 raise RRuleError(f"Invalid BYDAY token: {token!r}")
             ord_str, day_code = match.groups()
             ordinal = int(ord_str) if ord_str else None
+            if ordinal is not None and (ordinal == 0 or abs(ordinal) > 53):
+                raise RRuleError(f"Invalid BYDAY ordinal: {token!r}")
             byday.append(ByDaySpec(day=day_code, ordinal=ordinal))
 
     bymonthday: list[int] = []
@@ -149,7 +152,7 @@ def parse_rrule(rrule_str: str, tz_resolver: TimezoneResolver | None = None) -> 
                 continue
             try:
                 val = int(token)
-                if val == 0:
+                if val == 0 or abs(val) > 366:
                     raise ValueError()
                 bysetpos.append(val)
             except ValueError as err:
@@ -190,7 +193,7 @@ def _apply_setpos(candidates: list[datetime | date], setpos_list: list[int]) -> 
             result.append(candidates[pos - 1])
         elif pos < 0 and abs(pos) <= n:
             result.append(candidates[n + pos])
-    return sorted(result, key=lambda x: _to_comparable_datetime(x))
+    return sorted(set(result), key=lambda x: _to_comparable_datetime(x))
 
 
 def _get_matching_days_for_month(
@@ -250,186 +253,122 @@ def _create_instance_date(base: datetime | date, year: int, month: int, day: int
         return None
 
 
+def _period_candidates(
+    dtstart: datetime | date,
+    period: date,
+    rrule: RecurrenceRule,
+) -> list[datetime | date]:
+    """Build the full frequency period before applying BYSETPOS and DTSTART."""
+    days: list[date] = []
+    if rrule.freq == "DAILY":
+        if rrule.bymonth and period.month not in rrule.bymonth:
+            return []
+        if rrule.byday and period.weekday() not in {spec.weekday_int for spec in rrule.byday}:
+            return []
+        if rrule.bymonthday and period.day not in _get_matching_days_for_month(
+            period.year, period.month, [], rrule.bymonthday
+        ):
+            return []
+        days = [period]
+    elif rrule.freq == "WEEKLY":
+        weekdays = {spec.weekday_int for spec in rrule.byday} if rrule.byday else {dtstart.weekday()}
+        for offset in range(min(7, (date.max - period).days + 1)):
+            day = period + timedelta(days=offset)
+            if day.weekday() in weekdays and (not rrule.bymonth or day.month in rrule.bymonth):
+                days.append(day)
+    else:
+        if rrule.freq == "MONTHLY":
+            months = [period.month] if not rrule.bymonth or period.month in rrule.bymonth else []
+        elif rrule.bymonth:
+            months = sorted(set(rrule.bymonth))
+        elif rrule.byday or rrule.bymonthday:
+            months = list(range(1, 13))
+        else:
+            months = [dtstart.month]
+
+        # Without BYMONTH, YEARLY ordinal BYDAY refers to the whole year.
+        yearly_byday = rrule.freq == "YEARLY" and not rrule.bymonth and bool(rrule.byday)
+        month_byday = [] if yearly_byday else rrule.byday
+        for month in months:
+            if month_byday or rrule.bymonthday:
+                numbers = _get_matching_days_for_month(period.year, month, month_byday, rrule.bymonthday)
+            elif yearly_byday:
+                numbers = list(range(1, calendar.monthrange(period.year, month)[1] + 1))
+            else:
+                numbers = [dtstart.day] if dtstart.day <= calendar.monthrange(period.year, month)[1] else []
+            days.extend(date(period.year, month, number) for number in numbers)
+
+        if yearly_byday:
+            selected: set[date] = set()
+            for spec in rrule.byday:
+                year_days = [
+                    date(period.year, 1, 1) + timedelta(days=offset)
+                    for offset in range(366 if calendar.isleap(period.year) else 365)
+                    if (date(period.year, 1, 1).weekday() + offset) % 7 == spec.weekday_int
+                ]
+                if spec.ordinal is None:
+                    selected.update(year_days)
+                elif abs(spec.ordinal) <= len(year_days):
+                    selected.add(year_days[spec.ordinal - 1 if spec.ordinal > 0 else spec.ordinal])
+            days = [day for day in days if day in selected]
+
+    candidates: list[datetime | date] = [
+        datetime.combine(day, dtstart.timetz()) if isinstance(dtstart, datetime) else day
+        for day in days
+    ]
+    return _apply_setpos(candidates, rrule.bysetpos)
+
+
 def generate_recurrence_dates(
     dtstart: datetime | date,
     rrule: RecurrenceRule,
     window_end: datetime | date | None = None,
 ) -> Generator[datetime | date, None, None]:
-    """Generate recurrence dates based on an RRULE until COUNT, UNTIL, or window_end."""
-    is_dt = isinstance(dtstart, datetime)
-    base_time = dtstart.time() if is_dt else time.min
-    base_tz = dtstart.tzinfo if is_dt else None
+    """Generate DAILY through YEARLY recurrences bounded by COUNT, UNTIL and window_end."""
+    if rrule.freq not in {"DAILY", "WEEKLY", "MONTHLY", "YEARLY"}:
+        raise RRuleError(f"Unsupported expansion frequency: {rrule.freq!r}")
 
-    until_dt = _to_comparable_datetime(rrule.until) if rrule.until else None
-    window_end_dt = _to_comparable_datetime(window_end) if window_end else None
+    start_day = dtstart.date() if isinstance(dtstart, datetime) else dtstart
+    period = start_day
+    if rrule.freq == "WEEKLY":
+        offset = (start_day.weekday() - WEEKDAY_TO_INT[rrule.wkst]) % 7
+        period -= timedelta(days=min(offset, (period - date.min).days))
+    elif rrule.freq == "MONTHLY":
+        period = period.replace(day=1)
+    elif rrule.freq == "YEARLY":
+        period = period.replace(month=1, day=1)
 
+    bounds = [_to_comparable_datetime(value) for value in (rrule.until, window_end) if value is not None]
+    limit = min(bounds) if bounds else None
+    start_cmp = _to_comparable_datetime(dtstart)
     count = 0
-    max_count = rrule.count
-
-    def should_stop(current: datetime | date) -> bool:
-        c_dt = _to_comparable_datetime(current)
-        if until_dt is not None and c_dt > until_dt:
-            return True
-        if max_count is not None and count >= max_count:
-            return True
-        if max_count is None and window_end_dt is not None and c_dt > window_end_dt:
-            return True
-        return False
-
-    freq = rrule.freq
-    interval = rrule.interval
-
-    # --- FREQ: DAILY ---
-    if freq == "DAILY":
-        current_date = dtstart.date() if is_dt else dtstart
-        while True:
-            inst: datetime | date = (
-                datetime.combine(current_date, base_time, tzinfo=base_tz) if is_dt else current_date
-            )
-            if rrule.bymonth and inst.month not in rrule.bymonth:
-                current_date += timedelta(days=interval)
+    while True:
+        period_start = datetime.combine(period, dtstart.timetz()) if isinstance(dtstart, datetime) else period
+        if limit is not None and _to_comparable_datetime(period_start) > limit:
+            return
+        for candidate in _period_candidates(dtstart, period, rrule):
+            comparable = _to_comparable_datetime(candidate)
+            if comparable < start_cmp:
                 continue
-
-            if should_stop(inst):
-                break
-
-            yield inst
+            if limit is not None and comparable > limit:
+                return
+            yield candidate
             count += 1
-            if max_count is not None and count >= max_count:
-                break
+            if rrule.count is not None and count >= rrule.count:
+                return
 
-            current_date += timedelta(days=interval)
-
-    # --- FREQ: WEEKLY ---
-    elif freq == "WEEKLY":
-        # Days to check in each week
-        target_weekdays = [spec.weekday_int for spec in rrule.byday] if rrule.byday else [dtstart.weekday()]
-        wkst_int = WEEKDAY_TO_INT.get(rrule.wkst, 0)
-
-        # Find the start of the week for dtstart based on WKST
-        dt_day = dtstart.date() if is_dt else dtstart
-        day_offset = (dt_day.weekday() - wkst_int) % 7
-        current_week_start = dt_day - timedelta(days=day_offset)
-
-        while True:
-            week_candidates: list[datetime | date] = []
-            for offset in range(7):
-                candidate_day = current_week_start + timedelta(days=offset)
-                if candidate_day.weekday() in target_weekdays:
-                    inst = datetime.combine(candidate_day, base_time, tzinfo=base_tz) if is_dt else candidate_day
-                    if _to_comparable_datetime(inst) < _to_comparable_datetime(dtstart):
-                        continue
-                    if rrule.bymonth and inst.month not in rrule.bymonth:
-                        continue
-                    week_candidates.append(inst)
-
-            week_candidates = _apply_setpos(week_candidates, rrule.bysetpos)
-
-            terminated = False
-            for cand in week_candidates:
-                if should_stop(cand):
-                    terminated = True
-                    break
-                yield cand
-                count += 1
-                if max_count is not None and count >= max_count:
-                    terminated = True
-                    break
-
-            if terminated:
-                break
-
-            current_week_start += timedelta(weeks=interval)
-            # Early break if far beyond window
-            if max_count is None and window_end_dt is not None:
-                if _to_comparable_datetime(current_week_start) > window_end_dt:
-                    break
-
-    # --- FREQ: MONTHLY ---
-    elif freq == "MONTHLY":
-        cur_year = dtstart.year
-        cur_month = dtstart.month
-
-        while True:
-            # Candidates for this month
-            if rrule.byday or rrule.bymonthday:
-                day_nums = _get_matching_days_for_month(cur_year, cur_month, rrule.byday, rrule.bymonthday)
+        try:
+            if rrule.freq == "DAILY":
+                period += timedelta(days=rrule.interval)
+            elif rrule.freq == "WEEKLY":
+                period += timedelta(weeks=rrule.interval)
+            elif rrule.freq == "MONTHLY":
+                month_index = period.year * 12 + period.month - 1 + rrule.interval
+                period = date(month_index // 12, month_index % 12 + 1, 1)
             else:
-                _, days_in_cur = calendar.monthrange(cur_year, cur_month)
-                day_nums = [dtstart.day] if dtstart.day <= days_in_cur else []
-
-            month_candidates: list[datetime | date] = []
-            for d in day_nums:
-                inst = _create_instance_date(dtstart, cur_year, cur_month, d)
-                if inst is not None and _to_comparable_datetime(inst) >= _to_comparable_datetime(dtstart):
-                    if not rrule.bymonth or inst.month in rrule.bymonth:
-                        month_candidates.append(inst)
-
-            month_candidates = _apply_setpos(month_candidates, rrule.bysetpos)
-
-            terminated = False
-            for cand in month_candidates:
-                if should_stop(cand):
-                    terminated = True
-                    break
-                yield cand
-                count += 1
-                if max_count is not None and count >= max_count:
-                    terminated = True
-                    break
-
-            if terminated:
-                break
-
-            # Advance month by interval
-            total_months = cur_year * 12 + (cur_month - 1) + interval
-            cur_year = total_months // 12
-            cur_month = (total_months % 12) + 1
-
-            if max_count is None and window_end_dt is not None:
-                first_of_next = datetime(cur_year, cur_month, 1, tzinfo=timezone.utc)
-                if first_of_next > window_end_dt:
-                    break
-
-    # --- FREQ: YEARLY ---
-    elif freq == "YEARLY":
-        cur_year = dtstart.year
-        months_to_visit = rrule.bymonth if rrule.bymonth else [dtstart.month]
-
-        while True:
-            year_candidates: list[datetime | date] = []
-            for m in months_to_visit:
-                if rrule.byday or rrule.bymonthday:
-                    day_nums = _get_matching_days_for_month(cur_year, m, rrule.byday, rrule.bymonthday)
-                else:
-                    _, days_in_m = calendar.monthrange(cur_year, m)
-                    day_nums = [dtstart.day] if dtstart.day <= days_in_m else []
-
-                for d in day_nums:
-                    inst = _create_instance_date(dtstart, cur_year, m, d)
-                    if inst is not None and _to_comparable_datetime(inst) >= _to_comparable_datetime(dtstart):
-                        year_candidates.append(inst)
-
-            year_candidates = _apply_setpos(year_candidates, rrule.bysetpos)
-
-            terminated = False
-            for cand in year_candidates:
-                if should_stop(cand):
-                    terminated = True
-                    break
-                yield cand
-                count += 1
-                if max_count is not None and count >= max_count:
-                    terminated = True
-                    break
-
-            if terminated:
-                break
-
-            cur_year += interval
-            if max_count is None and window_end_dt is not None:
-                if datetime(cur_year, 1, 1, tzinfo=timezone.utc) > window_end_dt:
-                    break
+                period = date(period.year + rrule.interval, 1, 1)
+        except (OverflowError, ValueError):
+            return
 
 
 def expand_event(
@@ -446,7 +385,6 @@ def expand_event(
     """
     win_start_dt = _to_comparable_datetime(window_start)
     win_end_dt = _to_comparable_datetime(window_end)
-    duration = event.effective_duration
 
     # Prepare EXDATE lookup set
     exdate_set = {_to_comparable_datetime(ex) for ex in event.exdate}
@@ -535,4 +473,19 @@ def expand_event(
         if occ_start_dt <= win_end_dt and occ_end_dt >= win_start_dt:
             occurrences.append(occ)
 
-    return occurrences
+    # An override can move an instance from beyond the expansion window into it.
+    for (uid, _rec_key), override in (overrides or {}).items():
+        rec_id = override.recurrence_id
+        if (
+            uid != event.uid
+            or rec_id is None
+            or rec_id in generated_dates
+            or _to_comparable_datetime(rec_id) in exdate_set
+            or override.status.upper() == "CANCELLED"
+        ):
+            continue
+        occ = make_occurrence(override.dtstart, override, is_override=True, rec_id=rec_id)
+        if _to_comparable_datetime(occ.start) <= win_end_dt and _to_comparable_datetime(occ.end) >= win_start_dt:
+            occurrences.append(occ)
+
+    return sorted(occurrences, key=lambda occ: _to_comparable_datetime(occ.start))

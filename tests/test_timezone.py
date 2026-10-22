@@ -1,14 +1,14 @@
 """Tests for timezone resolution and VTIMEZONE handling."""
 
-from pathlib import Path
 import sys
 import unittest
 from datetime import datetime, timedelta, timezone, tzinfo
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from ics_tools.models import Component, Property
+from ics_tools.models import Component
 from ics_tools.timezone import (
     TimezoneResolver,
     format_tzoffset,

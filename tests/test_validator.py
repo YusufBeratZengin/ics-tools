@@ -1,12 +1,11 @@
 """Tests for RFC 5545 validator engine."""
 
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from ics_tools.parser import parse_calendar
 from ics_tools.validator import validate_calendar
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"

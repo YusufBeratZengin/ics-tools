@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a vulnerability privately
+    url: https://github.com/YusufBeratZengin/ics-tools/security/policy
+    about: Follow SECURITY.md instead of opening a public issue.

@@ -62,8 +62,7 @@ def unfold_lines(raw: str | bytes) -> list[tuple[int, str]]:
         text = raw.decode("utf-8-sig")
     else:
         text = raw
-        if text.startswith("\ufeff"):
-            text = text[1:]
+        text = text.removeprefix("\ufeff")
 
     # Normalize line breaks to \n while preserving positions
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
@@ -253,6 +252,7 @@ def parse_raw_component(
     source: str | bytes | Path | TextIO,
 ) -> Component:
     """Parse an iCalendar stream into a raw Component tree without semantic type conversion."""
+    content: str | bytes
     if isinstance(source, Path):
         content = source.read_text(encoding="utf-8-sig")
     elif isinstance(source, (io.TextIOBase, io.StringIO)):
@@ -278,6 +278,10 @@ def parse_raw_component(
 
         if line_clean.startswith("BEGIN:"):
             comp_name = line_clean[6:].strip().upper()
+            if root_component is not None:
+                raise ParseError("Multiple root components in iCalendar stream", line_number=line_no)
+            if comp_name == "VCALENDAR" and stack:
+                raise ParseError("VCALENDAR cannot be nested", line_number=line_no)
             new_comp = Component(name=comp_name)
             stack.append(new_comp)
             continue

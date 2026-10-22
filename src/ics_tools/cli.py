@@ -7,7 +7,6 @@ import re
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from ics_tools.constants import DEFAULT_PRODID
 from ics_tools.csv_export import export_to_csv
@@ -57,6 +56,15 @@ def _parse_window_param(val_str: str) -> timedelta:
     return timedelta(days=30)
 
 
+def _window_end(start: datetime | date, duration: timedelta) -> datetime | date:
+    """Preserve sub-day precision when a window starts on a date."""
+    if isinstance(start, datetime):
+        return start + duration
+    if duration.seconds or duration.microseconds:
+        return datetime.combine(start, datetime.min.time(), tzinfo=timezone.utc) + duration
+    return start + duration
+
+
 def cmd_merge(args: argparse.Namespace) -> int:
     """Merge multiple iCalendar files into one with deduplication."""
     calendars = []
@@ -68,7 +76,7 @@ def cmd_merge(args: argparse.Namespace) -> int:
         try:
             cal = parse_calendar(path.read_text(encoding="utf-8-sig"))
             calendars.append(cal)
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001 - Public boundary reports errors without a traceback.
             sys.stderr.write(f"Error parsing {filepath}: {err}\n")
             return 1
 
@@ -99,7 +107,7 @@ def cmd_filter(args: argparse.Namespace) -> int:
 
     try:
         cal = parse_calendar(content)
-    except Exception as err:
+    except Exception as err:  # noqa: BLE001 - Public boundary reports errors without a traceback.
         sys.stderr.write(f"Error parsing iCalendar stream: {err}\n")
         return 1
 
@@ -139,7 +147,7 @@ def cmd_list(args: argparse.Namespace) -> int:
 
     try:
         cal = parse_calendar(content)
-    except Exception as err:
+    except Exception as err:  # noqa: BLE001 - Public boundary reports errors without a traceback.
         sys.stderr.write(f"Error parsing iCalendar: {err}\n")
         return 1
 
@@ -154,10 +162,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         window_end = _parse_iso_date_or_datetime(args.to_dt)
     elif args.window:
         duration = _parse_window_param(args.window)
-        if isinstance(window_start, datetime):
-            window_end = window_start + duration
-        else:
-            window_end = window_start + timedelta(days=duration.days)
+        window_end = _window_end(window_start, duration)
     else:
         window_end = (now + timedelta(days=30)).date()
 
@@ -166,7 +171,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         from ics_tools.timezone import DEFAULT_RESOLVER
         try:
             target_tz = DEFAULT_RESOLVER.resolve(args.tz)
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001 - Public boundary reports errors without a traceback.
             sys.stderr.write(f"Warning: unknown timezone {args.tz!r}: {err}\n")
 
     # Collect and sort occurrences
@@ -260,19 +265,19 @@ def cmd_to_csv(args: argparse.Namespace) -> int:
 
     try:
         cal = parse_calendar(content)
-    except Exception as err:
+    except Exception as err:  # noqa: BLE001 - Public boundary reports errors without a traceback.
         sys.stderr.write(f"Error parsing iCalendar: {err}\n")
         return 1
 
     window_start = _parse_iso_date_or_datetime(args.from_dt) if args.from_dt else None
     window_end = _parse_iso_date_or_datetime(args.to_dt) if args.to_dt else None
 
-    if args.window:
+    if args.window and window_end is None:
         duration = _parse_window_param(args.window)
         now = datetime.now(tz=timezone.utc).date()
         if window_start is None:
             window_start = now
-        window_end = window_start + timedelta(days=duration.days)
+        window_end = _window_end(window_start, duration)
 
     csv_data = export_to_csv(
         cal,

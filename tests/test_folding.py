@@ -1,13 +1,13 @@
 """Tests for RFC 5545 line folding, unfolding, and text escaping."""
 
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from ics_tools.writer import fold_line, escape_text
-from ics_tools.parser import unfold_lines, unescape_text
+from ics_tools.parser import unescape_text, unfold_lines
+from ics_tools.writer import escape_text, fold_line
 
 
 class TestFoldingAndUnfolding(unittest.TestCase):
@@ -29,16 +29,16 @@ class TestFoldingAndUnfolding(unittest.TestCase):
         folded = fold_line(line)
         lines = folded.split("\r\n")
         # Should have at least 2 non-empty lines
-        content_lines = [l for l in lines if l]
+        content_lines = [physical_line for physical_line in lines if physical_line]
         self.assertGreaterEqual(len(content_lines), 2)
 
         # Every line must be <= 75 octets
-        for l in content_lines:
-            self.assertLessEqual(len(l.encode("utf-8")), 75)
+        for physical_line in content_lines:
+            self.assertLessEqual(len(physical_line.encode("utf-8")), 75)
 
         # Continuation lines must begin with a space
-        for l in content_lines[1:]:
-            self.assertTrue(l.startswith(" "))
+        for physical_line in content_lines[1:]:
+            self.assertTrue(physical_line.startswith(" "))
 
         # Roundtrip via unfold
         unfolded = unfold_lines(folded)
@@ -53,11 +53,11 @@ class TestFoldingAndUnfolding(unittest.TestCase):
         folded = fold_line(line)
 
         # Check line limits
-        lines = [l for l in folded.split("\r\n") if l]
-        for l in lines:
-            self.assertLessEqual(len(l.encode("utf-8")), 75)
+        lines = [physical_line for physical_line in folded.split("\r\n") if physical_line]
+        for physical_line in lines:
+            self.assertLessEqual(len(physical_line.encode("utf-8")), 75)
             # Ensure valid UTF-8 decoding
-            l.encode("utf-8").decode("utf-8")
+            physical_line.encode("utf-8").decode("utf-8")
 
         # Unfold and compare exact equality
         unfolded = unfold_lines(folded)
@@ -70,11 +70,11 @@ class TestFoldingAndUnfolding(unittest.TestCase):
         line = f"DESCRIPTION:{emoji_text}"
         folded = fold_line(line)
 
-        lines = [l for l in folded.split("\r\n") if l]
-        for l in lines:
-            self.assertLessEqual(len(l.encode("utf-8")), 75)
+        lines = [physical_line for physical_line in folded.split("\r\n") if physical_line]
+        for physical_line in lines:
+            self.assertLessEqual(len(physical_line.encode("utf-8")), 75)
             # Ensure valid UTF-8 decoding
-            l.encode("utf-8").decode("utf-8")
+            physical_line.encode("utf-8").decode("utf-8")
 
         unfolded = unfold_lines(folded)
         self.assertEqual(len(unfolded), 1)

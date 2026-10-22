@@ -1,15 +1,20 @@
 """Tests for the RFC 5545 parser engine."""
 
-from pathlib import Path
 import sys
 import unittest
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from ics_tools.exceptions import ParseError
 from ics_tools.models import Property
-from ics_tools.parser import parse_calendar, parse_content_line, parse_date_or_datetime, parse_duration
+from ics_tools.parser import (
+    parse_calendar,
+    parse_content_line,
+    parse_date_or_datetime,
+    parse_duration,
+)
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -31,11 +36,11 @@ class TestParser(unittest.TestCase):
         self.assertEqual(prop.get_param("VALUE"), "DATE-TIME")
 
     def test_parse_content_line_with_colons_in_quotes(self):
-        line = 'ATTENDEE;CN="John:Doe";ROLE=REQ-PARTICIPANT:mailto:johndoe@example.com'
+        line = 'ATTENDEE;CN="Demo:Participant";ROLE=REQ-PARTICIPANT:mailto:participant@example.invalid'
         prop = parse_content_line(line)
         self.assertEqual(prop.name, "ATTENDEE")
-        self.assertEqual(prop.value, "mailto:johndoe@example.com")
-        self.assertEqual(prop.get_param("CN"), "John:Doe")
+        self.assertEqual(prop.value, "mailto:participant@example.invalid")
+        self.assertEqual(prop.get_param("CN"), "Demo:Participant")
         self.assertEqual(prop.get_param("ROLE"), "REQ-PARTICIPANT")
 
     def test_parse_duration(self):

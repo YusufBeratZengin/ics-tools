@@ -1,6 +1,6 @@
 [build-system]
-requires = ["flit_core >=3.8,<4"]
-build-backend = "flit_core.buildapi"
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
 
 [project]
 name = "ics-tools"
@@ -8,12 +8,13 @@ version = "0.1.0"
 description = "Python library and CLI to parse, merge, filter and validate iCalendar (.ics) files with RRULE expansion"
 readme = "README.md"
 authors = [
-    { name = "Yusuf Berat Zengin", email = "118852217+YusufBeratZengin@users.noreply.github.com" },
+    { name = "Yusuf Berat Zengin" },
 ]
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -22,7 +23,6 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Utilities",
     "Typing :: Typed",
@@ -41,6 +41,10 @@ dependencies = []
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+    "ruff>=0.11",
+    "mypy>=1.15",
+    "build>=1.2",
+    "twine>=6",
 ]
 
 [project.urls]
@@ -56,6 +60,27 @@ ics = "ics_tools.cli:main"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+# Keep checks usable in restricted workspaces without writing pytest caches.
+addopts = "-p no:cacheprovider"
 filterwarnings = [
     "error",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ics_tools"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/examples", "/*.md", "/LICENSE", "/pyproject.toml"]
+
+[tool.ruff]
+target-version = "py310"
+extend-exclude = ["is", ".pytest_cache"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM", "RUF", "BLE", "S"]
+ignore = ["S101"]
+allowed-confusables = ["ı"]
+
+[tool.mypy]
+python_version = "3.10"
+check_untyped_defs = true

@@ -1,36 +1,39 @@
 # Contributing to ics-tools
 
-Thank you for your interest in contributing to `ics-tools`.
+## Setup and checks
 
-## Development Setup
+Use Python 3.10 or later. From a checkout, install development tools:
 
-`ics-tools` has zero runtime dependencies and requires Python 3.10 or later.
+```sh
+python -m pip install -e ".[dev]"
+python -m ruff check .
+python -m mypy src
+python -m pytest -q
+python examples/demo.py
+python -m build
+python -m twine check dist/*
+```
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/YusufBeratZengin/ics-tools.git
-   cd ics-tools
-   ```
+The editable install uses Hatchling. A network-restricted environment needs the build backend
+and development dependencies provisioned beforehand. Do not skip quality gates to release.
+Tests use synthetic data without network access; pytest's optional cache plugin is disabled
+so the suite also runs in restricted workspaces. CI checks Python 3.10–3.13 on Linux and Windows.
+Keep runtime dependencies empty, public APIs compatible, and both README languages aligned.
+Use Conventional Commits (`fix:`, `feat:`, `docs:`, `test:`, `ci:`, `chore:`).
+Add a regression test that fails before fixing a defect.
 
-2. (Optional) Create and activate a virtual environment:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
+## Releasing (maintainer only)
 
-3. Install development dependencies or run tests directly using the Python standard library:
-   ```bash
-   # Using pytest:
-   python -m pytest
+1. Update the Unreleased section of CHANGELOG.md and choose a SemVer version. Breaking changes
+   during 0.x increment the minor version.
+2. Update both `pyproject.toml` and `src/ics_tools/__init__.py`; run all checks above.
+3. Review the built wheel and sdist, including `py.typed`, and run `twine check` as the dry run.
+4. Commit with `chore(release): vX.Y.Z`, then create the matching `vX.Y.Z` tag.
+5. After release approval, push the tag. This triggers `publish.yml`, which verifies the tag,
+   reruns checks, builds artifacts, and publishes them through PyPI trusted publishing.
 
-   # Or using standard library unittest (zero extra packages needed):
-   python -m unittest discover -s tests
-   ```
-
-## Guidelines
-
-- **Zero runtime dependencies**: The core library and CLI must never depend on third-party runtime packages. Use the Python standard library (`zoneinfo`, `datetime`, `re`, `argparse`, `csv`, etc.).
-- **RFC 5545 Compliance**: Keep line folding at 75 octets (UTF-8 bytes aware), CRLF line endings, and proper parameter quoting.
-- **Commit Messages**: Follow [Conventional Commits](https://www.conventionalcommits.org/) (e.g., `feat: ...`, `fix: ...`, `test: ...`, `docs: ...`).
-- **Testing**: Add unit tests for every bug fix or new feature in the `tests/` directory. Ensure all tests pass across platforms.
-- **Code Style**: Follow PEP 8 and include type annotations (`py.typed` is provided).
+Configure a [PyPI trusted publisher](https://docs.pypi.org/trusted-publishers/using-a-publisher/)
+(or pending publisher for the first release) with owner `YusufBeratZengin`, repository `ics-tools`,
+workflow `publish.yml`, and environment `pypi`. Configure that GitHub environment's protection rules.
+No stored API credential is required. External publisher/environment configuration is a maintainer step;
+adding the workflow does not configure those services or publish a release.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, overload
 
 from ics_tools.constants import DEFAULT_PRODID, RFC_VERSION
 
@@ -28,6 +28,12 @@ class Property:
         for k, v in self.params.items():
             normalized_params[k.strip().upper()] = [str(x) for x in v] if isinstance(v, list) else [str(v)]
         self.params = normalized_params
+
+    @overload
+    def get_param(self, name: str, default: str) -> str: ...
+
+    @overload
+    def get_param(self, name: str, default: None = None) -> str | None: ...
 
     def get_param(self, name: str, default: str | None = None) -> str | None:
         """Return the first value of the specified parameter name, or default."""
@@ -80,6 +86,12 @@ class Component:
         key = name.upper()
         return [p for p in self.properties if p.name == key]
 
+    @overload
+    def get_property_value(self, name: str, default: str) -> str: ...
+
+    @overload
+    def get_property_value(self, name: str, default: None = None) -> str | None: ...
+
     def get_property_value(self, name: str, default: str | None = None) -> str | None:
         """Return the string value of the first property matching name, or default."""
         prop = self.get_property(name)
@@ -109,7 +121,7 @@ class Component:
     ) -> Property:
         """Replace the first existing property with this name or append a new one."""
         key = name.upper()
-        for idx, prop in enumerate(self.properties):
+        for prop in self.properties:
             if prop.name == key:
                 prop.value = value
                 if params is not None:
@@ -242,6 +254,8 @@ class Event:
             comp.add_property("DTSTAMP", val, params)
         else:
             now_utc = datetime.now(tz=timezone.utc)
+            # Assign a missing stamp once so repeated serialization stays stable.
+            self.dtstamp = now_utc
             val, params = format_date_or_datetime(now_utc)
             comp.add_property("DTSTAMP", val, params)
 

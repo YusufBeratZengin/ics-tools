@@ -1,8 +1,8 @@
 """Tests for byte-stable serialization and lossless roundtripping."""
 
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 

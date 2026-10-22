@@ -11,7 +11,7 @@ import logging
 import re
 from datetime import datetime, timedelta, timezone, tzinfo
 from typing import TYPE_CHECKING
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 from ics_tools.constants import WINDOWS_TO_IANA_TZ
 
@@ -253,7 +253,7 @@ class TimezoneResolver:
         # 1. Prefer standard IANA mapping via ZoneInfo
         try:
             return ZoneInfo(clean_tzid)
-        except (ZoneInfoNotFoundError, ValueError, Exception):
+        except Exception:  # noqa: BLE001, S110 - Keep best-effort timezone fallback behavior.
             pass
 
         # 2. Check common IANA fallback table (useful on Windows without tzdata package)
@@ -266,7 +266,7 @@ class TimezoneResolver:
         if iana_name:
             try:
                 return ZoneInfo(iana_name)
-            except (ZoneInfoNotFoundError, ValueError, Exception):
+            except Exception:  # noqa: BLE001, S110 - Keep best-effort timezone fallback behavior.
                 pass
             fallback = _create_fallback_tz(iana_name)
             if fallback is not None:
@@ -279,7 +279,7 @@ class TimezoneResolver:
                 sub_candidate = f"{parts[-2]}/{parts[-1]}"
                 try:
                     return ZoneInfo(sub_candidate)
-                except (ZoneInfoNotFoundError, ValueError, Exception):
+                except Exception:  # noqa: BLE001, S110 - Keep best-effort timezone fallback behavior.
                     pass
                 fallback = _create_fallback_tz(sub_candidate)
                 if fallback is not None:
@@ -287,7 +287,7 @@ class TimezoneResolver:
 
             try:
                 return ZoneInfo(parts[-1])
-            except (ZoneInfoNotFoundError, ValueError, Exception):
+            except Exception:  # noqa: BLE001, S110 - Keep best-effort timezone fallback behavior.
                 pass
             fallback = _create_fallback_tz(parts[-1])
             if fallback is not None:

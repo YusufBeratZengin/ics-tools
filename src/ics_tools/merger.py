@@ -2,13 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from ics_tools.constants import DEFAULT_PRODID, RFC_VERSION
 from ics_tools.models import Calendar, Component, Event
-
-if TYPE_CHECKING:
-    from datetime import date, datetime
 
 
 def _event_key(event: Event) -> tuple[str, str]:

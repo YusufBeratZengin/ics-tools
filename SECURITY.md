@@ -1,15 +1,14 @@
-# Security Policy
+# Security policy
 
-## Supported Versions
+## Supported versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.1.x   | Yes                |
+Security fixes target the latest 0.1.x release.
 
-## Reporting a Vulnerability
+## Private reports
 
-If you discover a security vulnerability in `ics-tools`, please report it privately rather than opening a public issue on GitHub.
+Use [GitHub private vulnerability reporting](https://github.com/YusufBeratZengin/ics-tools/security/advisories/new).
+Do not file a public issue for an undisclosed vulnerability. Include the affected version,
+a minimal synthetic calendar, expected behavior, and reproduction steps. Never include
+real calendars, personal information, or credentials. Maintainers coordinate fixes and disclosure privately.
 
-- Send an email to `118852217+YusufBeratZengin@users.noreply.github.com` with the subject line `[SECURITY] ics-tools vulnerability report`.
-- Provide a detailed description of the vulnerability, including reproducible steps or a minimal test case demonstrating the issue.
-- Maintainers will acknowledge receipt within 48 hours and work on a fix before public disclosure.
+If private reporting is unavailable, wait for the maintainer to enable it; do not publish exploit details in an issue.

@@ -1,13 +1,12 @@
 """Comprehensive tests for RRULE recurrence expansion."""
 
-from pathlib import Path
 import sys
 import unittest
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from ics_tools.models import Event
 from ics_tools.parser import parse_calendar
 from ics_tools.rrule import (
     expand_event,
@@ -150,7 +149,7 @@ class TestRRule(unittest.TestCase):
         path = FIXTURES_DIR / "recurring_override.ics"
         cal = parse_calendar(path)
 
-        master_event = [e for e in cal.events if not e.recurrence_id][0]
+        master_event = next(e for e in cal.events if not e.recurrence_id)
         overrides = {(e.uid, e.recurrence_id.isoformat()): e for e in cal.events if e.recurrence_id}
 
         window_start = datetime(2026, 11, 1, tzinfo=timezone.utc)

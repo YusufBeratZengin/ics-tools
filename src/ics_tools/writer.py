@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-import re
 from datetime import date, datetime, timedelta, timezone
-from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 from ics_tools.constants import CRLF, MAX_OCTETS_PER_LINE, TEXT_PROPERTIES
 from ics_tools.models import Calendar, Component, Property
-
-if TYPE_CHECKING:
-    from ics_tools.timezone import EmbeddedVTimezone
 
 
 def escape_text(text: str) -> str:
@@ -92,7 +87,7 @@ def format_date_or_datetime(
         return val, {}
 
     # Check for UTC
-    if dt.tzinfo == timezone.utc or dt.utcoffset() == timedelta(0):
+    if isinstance(dt.tzinfo, timezone) or dt.utcoffset() == timedelta(0):
         # Format as UTC with trailing 'Z'
         dt_utc = dt.astimezone(timezone.utc)
         utc_val = f"{dt_utc.year:04d}{dt_utc.month:02d}{dt_utc.day:02d}T{dt_utc.hour:02d}{dt_utc.minute:02d}{dt_utc.second:02d}Z"
@@ -103,9 +98,9 @@ def format_date_or_datetime(
     if isinstance(dt.tzinfo, ZoneInfo):
         tz_name = dt.tzinfo.key
     elif hasattr(dt.tzinfo, "tzid"):
-        tz_name = getattr(dt.tzinfo, "tzid")
+        tz_name = dt.tzinfo.tzid
     elif hasattr(dt.tzinfo, "zone"):
-        tz_name = getattr(dt.tzinfo, "zone")
+        tz_name = dt.tzinfo.zone
     else:
         tz_name = dt.tzname()
 
