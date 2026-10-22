@@ -1,0 +1,11 @@
+# Set default behavior to automatically normalize line endings
+* text=auto
+
+# iCalendar RFC 5545 files strictly require CRLF line endings
+*.ics text eol=crlf
+*.ical text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.ico binary
