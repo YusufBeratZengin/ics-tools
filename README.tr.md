@@ -1,60 +1,68 @@
 # ics-tools
-[![CI](https://github.com/YusufBeratZengin/ics-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/YusufBeratZengin/ics-tools/actions/workflows/ci.yml) [![PyPI](https://img.shields.io/pypi/v/ics-tools)](https://pypi.org/project/ics-tools/) [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml) [![Dependencies](https://img.shields.io/badge/runtime_dependencies-0-green)](pyproject.toml)
 
-iCalendar (.ics) dosyalarını oku, birleştir, filtrele, doğrula ve CSV'ye aktar; tekrar eden etkinlikleri tarih aralığında listele.
-Tip bilgisi sunan Python kütüphanesi ve CLI; çalışma zamanı bağımlılığı yok, takvimler yerelde işlenir.
+[![CI](https://github.com/YusufBeratZengin/ics-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/YusufBeratZengin/ics-tools/actions/workflows/ci.yml)
+[![PyPI - Version](https://img.shields.io/pypi/v/ics-tools.svg)](https://pypi.org/project/ics-tools/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](pyproject.toml)
+[![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](pyproject.toml)
+
+iCalendar (.ics) dosyalarını okuyun, birleştirin, filtreleyin, doğrulayın ve CSV'ye aktarın; tekrar eden etkinlikleri tarih aralığında listeleyin.
+
 [English](README.md) | [Türkçe](README.tr.md)
 
-Depo klasöründe kur: `python -m pip install .`
-Dene: `python -m ics_tools validate examples/demo.ics`
+![ics-tools CLI Demo](docs/demo.svg)
 
-## Demo
+## Neden ics-tools?
 
-Projeyle gelen yapay takvim örneğini çalıştır:
+- **Sıfır çalışma zamanı bağımlılığı**: Yalnızca saf Python standart kütüphanesi modülleri (`zoneinfo`, `re`, `datetime`, `csv`, `argparse`) ile geliştirilmiştir. Anında kurulum, sıfır tedarik zinciri riski ve minimum kaynak tüketimi.
+- **Yerel ve gizlilik odaklı**: Tüm ayrıştırma, filtreleme ve açma işlemleri tamamen yerel makinenizde çevrimdışı yürütülür. Takvim kayıtları, konum bilgileri ve notlar asla bilgisayarınızın dışına çıkmaz.
+- **Gelişmiş tekrar motoru**: INTERVAL, COUNT, UNTIL, BYDAY (sayısal sıra belirteçleriyle, örn. `2MO`, `-1FR`), BYMONTH, BYSETPOS, EXDATE, RDATE ve RECURRENCE-ID istisna geçersiz kılmalarını eksiksiz işleyen RFC 5545 uyumlu RRULE motoru (DAILY, WEEKLY, MONTHLY, YEARLY).
 
-```sh
-python examples/demo.py
-```
+## Hızlı başlangıç
 
-Gerçek çıktı (DAILY, COUNT, EXDATE ve RDATE birlikte):
-
-```text
-Parsed 1 event
-2026-01-01T09:00:00+00:00 | Demo sync
-2026-01-03T09:00:00+00:00 | Demo sync
-2026-01-05T09:00:00+00:00 | Demo sync
-```
-
-## Kurulum
-
-Python 3.10 veya üstü gerekir. Yukarıdaki kurulum komutunu depo kökünde çalıştır.
-Paket Hatchling ile oluşturulur; kurulum için erişilebilir bir paket kaynağı veya önceden kurulmuş build aracı gerekir.
-PyPI rozeti paket kaynağındaki durumu gösterir; yayın workflow'unu eklemek tek başına sürüm yayımlamaz.
-Kurulumdan sonra `ics` komutu, `python -m ics_tools` ile aynı işi yapar.
-
-## Kullanım
-
-### CLI
-
-Merge, `(UID, RECURRENCE-ID)` eşleşmesiyle tekilleştirir. Önce yüksek SEQUENCE, ardından
-yeni LAST-MODIFIED ve DTSTAMP, eşitlikte ise sonraki girdi tercih edilir. Filter; özet,
-açıklama, konum ve kategorilerde arama yapar; varsayılan olarak büyük/küçük harf ayrımı yapmaz.
-List, tekrar eden etkinliklerin oluşumlarını listeler. Validate, geçerli girdide 0, hatada 1 döndürür;
-yalnız uyarı varsa başarısız sayılmaz. Örneklerde yapay veri kullanılır; çıktılar `is/` altına yazılır.
+Python 3.10 veya üstü gerekir. Doğrudan kaynak koddan veya paketten kurun:
 
 ```sh
-python -m ics_tools merge examples/demo.ics examples/demo.ics -o is/merged.ics
-python -m ics_tools filter examples/demo.ics --from 2026-01-01 --to 2026-01-07 --match Demo -o is/filtered.ics
-python -m ics_tools list examples/demo.ics --from 2026-01-01 --window 30d --tz Europe/Istanbul
-python -m ics_tools validate examples/demo.ics
-python -m ics_tools to-csv examples/demo.ics --from 2026-01-01 --window 30d --tz Europe/Istanbul -o is/events.csv
-python -m ics_tools to-csv examples/demo.ics --raw -o is/events-raw.csv
+# Depo kök dizininde kurulum
+python -m pip install .
+
+# Bir iCalendar dosyasını doğrulama
+ics validate examples/demo.ics
+
+# 7 günlük pencerede yinelenen etkinlikleri listeleme
+ics list examples/demo.ics --from 2026-01-01 --window 7d
 ```
 
-Filter, list ve to-csv için dosya yerine `-` kullanabilir veya girdiyi boş bırakarak stdin'den okuyabilirsin.
-`-o` verilmezse çıktı stdout'a yazılır. CSV sütunları: UID, Summary, Description, Location,
-Start, End, Duration, AllDay, Status ve RecurrenceId. CSV aktarımında tarih sınırı veya pencere
-verilirse tekrarlar açılır; sınır verilmezse ham kayıtlar aktarılır. `--raw` her zaman ham kayıt verir.
+> Kurulan komut satırı aracı `ics` adındadır. Alternatif olarak `python -m ics_tools` ile de çalıştırılabilir.
+
+## Kullanım örnekleri
+
+### Komut Satırı Arayüzü (CLI)
+
+```sh
+# 1. RFC 5545 standartlarına uygunluğu denetle (geçerlide 0, hatada 1 döner)
+ics validate examples/demo.ics
+
+# 2. Birden fazla takvim dosyasını otomatik tekilleştirmeyle birleştir
+ics merge examples/demo.ics examples/demo.ics -o is/merged.ics
+
+# 3. Etkinlikleri tarih aralığı ve metin aramasıyla filtrele
+ics filter examples/demo.ics --from 2026-01-01 --to 2026-01-07 --match Demo -o is/filtered.ics
+
+# 4. Tekrarları açarak hedef zaman diliminde etkinlikleri listele
+ics list examples/demo.ics --from 2026-01-01 --window 30d --tz Europe/Istanbul
+
+# 5. Tekrar eden etkinlikleri açarak CSV biçiminde dışa aktar
+ics to-csv examples/demo.ics --from 2026-01-01 --window 30d --tz Europe/Istanbul -o is/events.csv
+
+# 6. Takvim kayıtlarını tekrarları açmadan ham haliyle CSV'ye aktar
+ics to-csv examples/demo.ics --raw -o is/events-raw.csv
+```
+
+**CLI Notları:**
+- Filter, list ve to-csv komutları dosya yolu yerine `-` verilirse veya dosya argümanı boş bırakılırsa standart girdiden (`stdin`) okur.
+- `-o` / `--output` parametresi verilmezse çıktılar doğrudan standart çıktıya (`stdout`) yazılır.
+- CSV çıktı sütunları: `UID`, `Summary`, `Description`, `Location`, `Start`, `End`, `Duration`, `AllDay`, `Status` ve `RecurrenceId`.
 
 ### Python API
 
@@ -62,92 +70,113 @@ verilirse tekrarlar açılır; sınır verilmezse ham kayıtlar aktarılır. `--
 from datetime import date
 from pathlib import Path
 from ics_tools import (
-    expand_event, export_to_csv, filter_calendar, merge_calendars,
-    parse_calendar, serialize_calendar, validate_calendar,
+    expand_event,
+    export_to_csv,
+    filter_calendar,
+    merge_calendars,
+    parse_calendar,
+    serialize_calendar,
+    validate_calendar,
 )
 
+# Dosya yolu, ham metin, UTF-8 bayt dizisi veya metin akışından ayrıştırma
 calendar = parse_calendar(Path("examples/demo.ics"))
+
+# Belirli bir zaman penceresinde tekrar eden etkinlikleri açma
 occurrences = expand_event(calendar.events[0], date(2026, 1, 1), date(2026, 1, 7))
 assert len(occurrences) == 3
+
+# Takvimleri çakışma çözümüyle birleştirme (UID + RECURRENCE-ID tekilleştirmesi)
 merged = merge_calendars([calendar, calendar])
+
+# Etkinlikleri metin deseni ve tarih sınırlarıyla filtreleme
 filtered = filter_calendar(merged, pattern="Demo")
-assert validate_calendar(serialize_calendar(filtered)).is_valid
+
+# RFC 5545 standartlarına uygunluğu denetleme
+result = validate_calendar(serialize_calendar(filtered))
+assert result.is_valid
+
+# CSV formatına aktarma (metin döndürür veya doğrudan bir akışa yazar)
 csv_text = export_to_csv(filtered, window_start=date(2026, 1, 1), window_end=date(2026, 1, 7))
 assert "Demo sync" in csv_text
 ```
 
-`parse_calendar`; metin, UTF-8 baytları, `Path` veya metin akışı kabul eder.
-`Calendar` ve `Event` nesneleri doğrudan da oluşturulabilir. `serialize_calendar`, CRLF satır
-sonlarıyla metin döndürür; bunları korumak için `serialize_calendar_bytes` kullan veya çıktı
-dosyasını `newline=""` ile aç. `export_to_csv` metin döndürür; `output` verilirse akışa yazar ve boş metin döndürür.
+## Yapılandırma & seçenekler
 
-## Örnekler
+### CLI parametreleri
 
-[examples/demo.py](examples/demo.py) ve [examples/demo.ics](examples/demo.ics), çalıştırılabilir
-yapay örneklerdir. Test fixture'ları Google, Apple, Outlook ve Thunderbird çıktılarının biçimini
-taklit eder; gerçek kullanıcı takvimlerinden alınmamıştır.
+| Seçenek | Komut | Açıklama |
+| --- | --- | --- |
+| `--from`, `--to` | `filter`, `list`, `to-csv` | ISO 8601 tarih (`YYYY-MM-DD`) veya tarih-saat (`YYYY-MM-DDTHH:MM:SSZ`). Yalnız tarih verildiğinde gece yarısı (UTC) kabul edilir. |
+| `--window` | `list`, `to-csv` | Süre kısaltması: `30d` (gün), `2w` (hafta), `24h` (saat) veya `1m` (30 gün). Açıkça verilen `--to` bu değere önceliklidir. |
+| `--tz` | `list`, `to-csv` | Hedef IANA zaman dilimi adı (örn. `Europe/Istanbul`, `America/New_York`) veya desteklenen Windows zaman dilimi adı. |
+| `--match` | `filter` | `SUMMARY`, `DESCRIPTION`, `LOCATION` ve `CATEGORIES` alanlarında aranan düzenli ifade (regex). |
+| `-i`, `--case-sensitive` | `filter` | Büyük/küçük harfe duyarlı regex eşleşmesi uygular (varsayılan: duyarsız). |
+| `--raw` | `to-csv` | Tekrar eden etkinlikleri açmadan ham kayıtları CSV'ye aktarır. |
+| `-o`, `--output` | `merge`, `filter`, `to-csv` | Hedef dosya yolu. Eksik üst klasörler otomatik olarak oluşturulur. |
 
-## Yapılandırma / seçenekler
+### Tekrar kuralları & standart desteği
 
-| Seçenek veya kural | Davranış |
+| Özellik | Destek Durumu |
 | --- | --- |
-| `--from`, `--to` | ISO tarih veya tarih-saat sınırları; yalnız tarih verilirse gece yarısı kabul edilir |
-| `--window` | `30d`, `2w`, `24h` veya `1m` (30 gün); açıkça verilen `--to` önceliklidir |
-| `--tz` | List / CSV çıktısı için IANA veya desteklenen Windows zaman dilimi adı |
-| `--match`, `--case-sensitive` | Regex filtresi; isteğe bağlı büyük/küçük harf ayrımı |
-| `-o`, `--output` | Çıktı dosyası; gerekirse üst klasörleri oluşturulur |
-| `--raw` | Tekrarları açmadan CSV'ye aktarım |
-| RRULE | DAILY, WEEKLY, MONTHLY, YEARLY; INTERVAL, COUNT, UNTIL, BYDAY, BYMONTHDAY, BYMONTH, BYSETPOS, WKST |
-| İstisnalar | EXDATE, RDATE (DATE / DATE-TIME) ve iptaller dahil RECURRENCE-ID değişiklikleri |
+| **Frekanslar** | `DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY` |
+| **Kural parçaları** | `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` (sayısal sıra belirteçleriyle, örn. `2MO`, `-1FR`), `BYMONTHDAY`, `BYMONTH`, `BYSETPOS`, `WKST` |
+| **İstisnalar** | `EXDATE`, `RDATE` (`VALUE=DATE` ve `VALUE=DATE-TIME`) ve iptaller dahil `RECURRENCE-ID` geçersiz kılmaları |
 
-## Nasıl çalışır?
+## SSS ve Sınırlamalar
 
-Parser, katlanmış satırları birleştirir; kaçışlı metinleri ve tırnaklı parametreleri işler,
-bilinmeyen özellikleri korur. Writer, özellikleri tutarlı sırada yazar; UTF-8 satırlarını
-75 baytta katlar ve CRLF üretir. Event nesnesinde DTSTAMP yoksa ilk yazımda atanır ve sonraki
-yazımlarda korunur. Tekrar filtreleri, her frekans dönemi içinde BYSETPOS'tan önce uygulanır.
-COUNT, UNTIL ve pencere sonu birlikte üretimi sınırlar. Zaman diliminde önce IANA verisi kullanılır.
+### Tekilleştirme nasıl çalışır?
+`merge_calendars`, kayıtları `(UID, RECURRENCE-ID)` çiftine göre belirler. Çakışma durumunda kazanan kayıt şu öncelik sırasına göre belirlenir:
+1. Yüksek `SEQUENCE` numarası.
+2. Daha yeni `LAST-MODIFIED` zaman damgası.
+3. Daha yeni `DTSTAMP` zaman damgası.
+4. Girdi sırası (sonraki gelen girdi öncekini değiştirir).
 
-## Sınırlamalar / gizlilik
+### Satır katlama ve serileştirme nasıl yapılır?
+`serialize_calendar` özellikleri deterministik sırada yazar, RFC 5545 Bölüm 3.1 gereği satırları çok baytlı karakterleri bölmeden 75 sekizlide (oktet) katlar ve satır sonlarında CRLF (`\r\n`) kullanır. `DTSTAMP` değeri eksik olan etkinliklere ilk serileştirmede bir zaman damgası atanır ve sonraki yazımlarda korunur.
 
-Takvimler çevrimdışı işlenir; dışarıya veri gönderilmez. Özel takvimleri issue veya fixture olarak ekleme.
-Araç, RFC 5545'in pratik bir alt kümesini uygular; kapsamlı bir RFC uygunluk denetleyicisi değildir.
-Tekrar genişletme DAILY–YEARLY aralığını destekler; RDATE PERIOD değerleri,
-BYHOUR/BYMINUTE/BYSECOND/BYYEARDAY/BYWEEKNO ve RANGE=THISANDFUTURE desteklenmez.
-Doğrulama; yapıyı, temel zorunlu alanları, tarih biçimini ve desteklenen tekrar değerlerinin sınırlarını
-kontrol eder; RFC'nin her koşulunu denetlemez.
+### Zaman dilimleri nasıl çözümlenir?
+Zaman dilimi çözümünde öncelik sistem IANA veritabanına bağlı standart Python `zoneinfo` modülündedir. TZID bulunamazsa veya sistem IANA veritabanı eksikse (özellikle saf Windows kurulumlarında), `ics-tools` yaygın Windows zaman dilimi adlarını ve takvim içindeki gömülü `VTIMEZONE` bileşenlerini yedek olarak kullanır. Çözümlenemeyen zaman dilimleri uyarı kaydederek UTC'ye döner.
 
-Gömülü VTIMEZONE yedeği offset değerlerini çıkarır ve kuzey yarımküre için yaklaşık bir yaz saati aralığı kullanır;
-geçmiş geçişleri ve bileşendeki geçiş RRULE'larını yorumlamaz. Sistemde IANA verisi yoksa
-(Windows'ta sık görülür) yaygın zaman dilimleri için kullanılan yedeklerde de bu sınırlar geçerlidir.
-Bilinmeyen TZID için uyarı kaydedilir ve UTC kullanılır. Zaman dilimsiz datetime değerleri
-karşılaştırmada UTC sayılır; tutarlı dönüşüm için zaman dilimli değerler kullan.
-Tarih penceresi sınırları ve aralıkla örtüşen etkinlikler dahildir; bir günün tamamını kapsamak için
-bitişi tarih-saat olarak ver. Sınırsız generator'ı yalnız gerektiği kadar tüket veya COUNT,
-UNTIL ya da pencere sonu belirt. Üretim DTSTART'tan başladığı için eski seriler ve geniş pencereler yavaş olabilir.
+### Tasarım sınırları nelerdir?
+- **RFC 5545 alt kümesi**: Takvim işlemlerine odaklanmıştır. `DAILY` altındaki frekanslar (`HOURLY`, `MINUTELY`), `RDATE` süre aralıkları (`PERIOD`) ve `RANGE=THISANDFUTURE` kapsam dışındadır.
+- **Çevrimdışı gizlilik**: İşlemler %100 çevrimdışı yürütülür; hiçbir ağ isteği yapılmaz.
+- **Sınırsız üretim**: Sonsuz tekrar dizileri daima bir genişletme penceresi, `COUNT` veya `UNTIL` sınırı ile tüketilmelidir.
 
-## Geliştirme
+## Katkıda Bulunma
 
-Depo klasöründe geliştirme araçlarını kurup kontrolleri çalıştır:
+Katkılar, hata bildirimleri ve öneriler memnuniyetle karşılanır!
+
+### Geliştirme ortamı
 
 ```sh
+# Depoyu klonlayın
+git clone https://github.com/YusufBeratZengin/ics-tools.git
+cd ics-tools
+
+# Geliştirme bağımlılıklarını düzenlenebilir modda kurun
 python -m pip install -e ".[dev]"
+
+# Kod stili ve linter kontrolünü çalıştırın
 python -m ruff check .
-python -m mypy src
-python -m pytest -q
+
+# Statik tip denetimini çalıştırın
+python -m mypy src tests
+
+# Dal kapsama raporuyla test paketini çalıştırın
+python -m pytest --cov=ics_tools --cov-report=term-missing
+
+# Paket derleme ve meta veri doğrulamasını çalıştırın
 python -m build
 python -m twine check dist/*
 ```
 
-CI, Linux ve Windows üzerinde Python 3.10–3.13 sürümlerini kapsar. Testler ağa bağlanmaz.
-Kısıtlı çalışma ortamlarına uyum için pytest'in isteğe bağlı cache eklentisi kapalıdır.
-
-## Katkıda bulunma
-
-Kontroller, commit biçimi ve bakım sorumlusunun sürüm çıkarma adımları için
-[CONTRIBUTING.md](CONTRIBUTING.md) dosyasına bak. Topluluk kuralları
-[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), özel güvenlik bildirim yolu ise [SECURITY.md](SECURITY.md) içindedir.
+İlgili rehberler:
+- Kod kuralları ve pull request süreci için [CONTRIBUTING.md](CONTRIBUTING.md).
+- Topluluk katılım standartları için [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+- Güvenlik açığı bildirim süreci için [SECURITY.md](SECURITY.md).
 
 ## Lisans
 
-[MIT](LICENSE). Telif hakkı (c) 2026 Yusuf Berat Zengin.
+Bu proje [MIT Lisansı](LICENSE) altında lisanslanmıştır.  
+Telif Hakkı (c) 2026 Yusuf Berat Zengin.

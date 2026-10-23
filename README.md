@@ -1,60 +1,68 @@
 # ics-tools
-[![CI](https://github.com/YusufBeratZengin/ics-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/YusufBeratZengin/ics-tools/actions/workflows/ci.yml) [![PyPI](https://img.shields.io/pypi/v/ics-tools)](https://pypi.org/project/ics-tools/) [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml) [![Dependencies](https://img.shields.io/badge/runtime_dependencies-0-green)](pyproject.toml)
+
+[![CI](https://github.com/YusufBeratZengin/ics-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/YusufBeratZengin/ics-tools/actions/workflows/ci.yml)
+[![PyPI - Version](https://img.shields.io/pypi/v/ics-tools.svg)](https://pypi.org/project/ics-tools/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](pyproject.toml)
+[![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](pyproject.toml)
 
 Parse, merge, filter, validate, and export iCalendar (.ics) files, with recurring event expansion.
-A typed Python library and CLI with zero runtime dependencies; calendar processing stays local.
+
 [English](README.md) | [Türkçe](README.tr.md)
 
-Install from a checkout: `python -m pip install .`
-Try it: `python -m ics_tools validate examples/demo.ics`
+![ics-tools CLI Demo](docs/demo.svg)
 
-## Demo
+## Why ics-tools?
 
-Run the included synthetic calendar example:
+- **Zero runtime dependencies**: Built exclusively with Python standard library modules (`zoneinfo`, `re`, `datetime`, `csv`, `argparse`). Instant installation, zero supply-chain risk, and ultra-lightweight footprint.
+- **Local & privacy-first**: Every operation runs entirely offline on your local machine. Calendar entries, locations, and attendee notes never leave your computer.
+- **Comprehensive recurrence engine**: Robust RFC 5545 RRULE expansion (DAILY, WEEKLY, MONTHLY, YEARLY) with support for INTERVAL, COUNT, UNTIL, BYDAY (with numeric ordinals), BYMONTH, BYSETPOS, EXDATE, RDATE, and RECURRENCE-ID exception overrides.
 
-```sh
-python examples/demo.py
-```
+## Quick start
 
-Actual output (DAILY with COUNT, EXDATE, and RDATE):
-
-```text
-Parsed 1 event
-2026-01-01T09:00:00+00:00 | Demo sync
-2026-01-03T09:00:00+00:00 | Demo sync
-2026-01-05T09:00:00+00:00 | Demo sync
-```
-
-## Install
-
-Requires Python 3.10 or later. Run the install command above from the repository root.
-The build uses Hatchling; installation needs an available package index or a provisioned build backend.
-The PyPI badge reflects registry availability; adding a publish workflow does not itself create a release.
-The installed `ics` command is equivalent to `python -m ics_tools`.
-
-## Usage
-
-### CLI
-
-Merge deduplicates by `(UID, RECURRENCE-ID)`, preferring higher SEQUENCE, then newer
-LAST-MODIFIED and DTSTAMP, then the later input. Filter searches summary, description,
-location, and categories (case insensitive by default). List expands recurring instances.
-Validation returns 0 for valid input and 1 for errors; warnings alone do not fail it.
-All examples use synthetic data and write generated files under `is/`.
+Requires Python 3.10 or later. Install directly from source or package:
 
 ```sh
-python -m ics_tools merge examples/demo.ics examples/demo.ics -o is/merged.ics
-python -m ics_tools filter examples/demo.ics --from 2026-01-01 --to 2026-01-07 --match Demo -o is/filtered.ics
-python -m ics_tools list examples/demo.ics --from 2026-01-01 --window 30d --tz Europe/Istanbul
-python -m ics_tools validate examples/demo.ics
-python -m ics_tools to-csv examples/demo.ics --from 2026-01-01 --window 30d --tz Europe/Istanbul -o is/events.csv
-python -m ics_tools to-csv examples/demo.ics --raw -o is/events-raw.csv
+# Install from repository root
+python -m pip install .
+
+# Validate an iCalendar file
+ics validate examples/demo.ics
+
+# List expanded events for a 7-day window
+ics list examples/demo.ics --from 2026-01-01 --window 7d
 ```
 
-Filter, list, and to-csv accept `-` or omitted input to read stdin. Omit `-o` for stdout.
-CSV columns are UID, Summary, Description, Location, Start, End, Duration, AllDay,
-Status, and RecurrenceId. CSV expands recurrences when a date bound or window is supplied;
-without bounds it exports raw records. `--raw` always exports raw records.
+> The installed CLI command is `ics`. You can also execute it as `python -m ics_tools`.
+
+## Usage examples
+
+### Command-line interface (CLI)
+
+```sh
+# 1. Validate RFC 5545 compliance (returns exit code 0 on valid, 1 on error)
+ics validate examples/demo.ics
+
+# 2. Merge multiple calendars with automatic deduplication
+ics merge examples/demo.ics examples/demo.ics -o is/merged.ics
+
+# 3. Filter events by date range and case-insensitive keyword match
+ics filter examples/demo.ics --from 2026-01-01 --to 2026-01-07 --match Demo -o is/filtered.ics
+
+# 4. List expanded occurrences with target timezone translation
+ics list examples/demo.ics --from 2026-01-01 --window 30d --tz Europe/Istanbul
+
+# 5. Export expanded event occurrences to CSV
+ics to-csv examples/demo.ics --from 2026-01-01 --window 30d --tz Europe/Istanbul -o is/events.csv
+
+# 6. Export raw calendar records directly to CSV without expansion
+ics to-csv examples/demo.ics --raw -o is/events-raw.csv
+```
+
+**CLI Notes:**
+- Filter, list, and to-csv accept `-` or omitted file arguments to read from standard input (`stdin`).
+- When `-o` / `--output` is omitted, results are emitted to standard output (`stdout`).
+- CSV output columns: `UID`, `Summary`, `Description`, `Location`, `Start`, `End`, `Duration`, `AllDay`, `Status`, and `RecurrenceId`.
 
 ### Python API
 
@@ -62,91 +70,113 @@ without bounds it exports raw records. `--raw` always exports raw records.
 from datetime import date
 from pathlib import Path
 from ics_tools import (
-    expand_event, export_to_csv, filter_calendar, merge_calendars,
-    parse_calendar, serialize_calendar, validate_calendar,
+    expand_event,
+    export_to_csv,
+    filter_calendar,
+    merge_calendars,
+    parse_calendar,
+    serialize_calendar,
+    validate_calendar,
 )
 
+# Parse from a file path, raw string, UTF-8 bytes, or text stream
 calendar = parse_calendar(Path("examples/demo.ics"))
+
+# Expand recurring events within a bounded time window
 occurrences = expand_event(calendar.events[0], date(2026, 1, 1), date(2026, 1, 7))
 assert len(occurrences) == 3
+
+# Merge calendars with conflict resolution (UID + RECURRENCE-ID deduplication)
 merged = merge_calendars([calendar, calendar])
+
+# Filter events by text regex and date bounds
 filtered = filter_calendar(merged, pattern="Demo")
-assert validate_calendar(serialize_calendar(filtered)).is_valid
+
+# Validate calendar RFC 5545 conformance
+result = validate_calendar(serialize_calendar(filtered))
+assert result.is_valid
+
+# Export to CSV (returns CSV string or writes directly to a stream)
 csv_text = export_to_csv(filtered, window_start=date(2026, 1, 1), window_end=date(2026, 1, 7))
 assert "Demo sync" in csv_text
 ```
 
-`parse_calendar` accepts text, UTF-8 bytes, a `Path`, or a text stream.
-`Calendar` and `Event` can also be constructed directly. `serialize_calendar` returns
-CRLF text; use `serialize_calendar_bytes` or open text output with `newline=""` to preserve it.
-`export_to_csv` returns text; when passed `output`, it writes to the stream and returns an empty string.
+## Configuration & options
 
-## Examples
+### CLI parameters
 
-[examples/demo.py](examples/demo.py) and [examples/demo.ics](examples/demo.ics) are runnable,
-synthetic examples. The test fixtures imitate common Google, Apple, Outlook, and Thunderbird exports;
-they are authored test data, not actual user exports.
+| Option | Command | Description |
+| --- | --- | --- |
+| `--from`, `--to` | `filter`, `list`, `to-csv` | ISO 8601 date (`YYYY-MM-DD`) or datetime (`YYYY-MM-DDTHH:MM:SSZ`). Dates imply midnight UTC. |
+| `--window` | `list`, `to-csv` | Shorthand duration window: `30d` (days), `2w` (weeks), `24h` (hours), or `1m` (30 days). Explicit `--to` overrides this. |
+| `--tz` | `list`, `to-csv` | Target IANA timezone identifier (e.g. `Europe/Istanbul`, `America/New_York`) or supported Windows timezone name. |
+| `--match` | `filter` | Regular expression matching against `SUMMARY`, `DESCRIPTION`, `LOCATION`, and `CATEGORIES`. |
+| `-i`, `--case-sensitive` | `filter` | Enforce case-sensitive regex matching (case-insensitive by default). |
+| `--raw` | `to-csv` | Export raw event records without expanding recurring series. |
+| `-o`, `--output` | `merge`, `filter`, `to-csv` | Destination file path. Parent directories are created automatically. |
 
-## Configuration / options
+### Recurrence rules & spec support
 
-| Option or rule | Behavior |
+| Feature | Support Level |
 | --- | --- |
-| `--from`, `--to` | ISO date or datetime bounds; a date denotes midnight |
-| `--window` | `30d`, `2w`, `24h`, or `1m` (30 days); explicit `--to` takes priority |
-| `--tz` | IANA or supported Windows timezone name for list / CSV output |
-| `--match`, `--case-sensitive` | Regex filter, optionally case sensitive |
-| `-o`, `--output` | Output file; parent directories are created |
-| `--raw` | CSV records without recurrence expansion |
-| RRULE | DAILY, WEEKLY, MONTHLY, YEARLY; INTERVAL, COUNT, UNTIL, BYDAY, BYMONTHDAY, BYMONTH, BYSETPOS, WKST |
-| Exceptions | EXDATE, RDATE (DATE / DATE-TIME), and RECURRENCE-ID overrides, including cancellations |
+| **Frequencies** | `DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY` |
+| **Rule parts** | `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` (including numeric ordinals like `2MO`, `-1FR`), `BYMONTHDAY`, `BYMONTH`, `BYSETPOS`, `WKST` |
+| **Exceptions** | `EXDATE`, `RDATE` (`VALUE=DATE` and `VALUE=DATE-TIME`), and `RECURRENCE-ID` overrides (including cancellations) |
 
-## How it works
+## FAQ & Limitations
 
-The parser unfolds lines, handles escaped text and quoted parameters, and preserves unknown properties.
-The writer orders properties deterministically, folds UTF-8 at 75 octets, and emits CRLF.
-A missing Event DTSTAMP is assigned on its first serialization and reused on subsequent writes.
-Recurrence filters operate on each frequency period before BYSETPOS. COUNT, UNTIL, and the
-expansion window all bound generation. IANA timezone data takes priority over fallbacks.
+### How does deduplication work?
+`merge_calendars` identifies unique records by `(UID, RECURRENCE-ID)`. When a conflict is found, the winning record is selected using deterministic precedence:
+1. Higher `SEQUENCE` number.
+2. Later `LAST-MODIFIED` timestamp.
+3. Later `DTSTAMP` timestamp.
+4. Input list order (later input replaces earlier).
 
-## Limitations / privacy
+### How is line folding and serialization handled?
+`serialize_calendar` orders properties deterministically, folds lines at 75 octets on UTF-8 character boundaries (avoiding splitting multibyte sequences), and terminates all lines with CRLF (`\r\n`) in accordance with RFC 5545 Section 3.1. Missing `DTSTAMP` properties are assigned on initial serialization and preserved across consecutive writes.
 
-Processing is offline; no calendar data is uploaded. Keep private calendars out of issues and fixtures.
-This is a practical RFC 5545 subset, not a complete RFC compliance checker: expansion supports
-DAILY through YEARLY, and RDATE PERIOD values, BYHOUR/BYMINUTE/BYSECOND/BYYEARDAY/BYWEEKNO,
-and RANGE=THISANDFUTURE are unsupported. Validation checks structure, key required fields,
-date syntax, and supported recurrence ranges; it does not validate every RFC constraint.
+### How are timezones resolved?
+Resolution prioritizes the standard Python `zoneinfo` module against system IANA definitions. If a TZID is not found or the system database is unavailable (common on minimal Windows installations), `ics-tools` resolves standard Windows timezone aliases and inspects embedded `VTIMEZONE` components as a fallback. Unresolved timezones fall back to UTC with a logged warning.
 
-Embedded VTIMEZONE fallback extracts offsets and uses an approximate northern-hemisphere daylight-saving season;
-it does not interpret historical transitions or the component's transition RRULEs. Common timezone
-fallbacks have the same limits when the system IANA database is missing (often on Windows).
-Unknown TZIDs log a warning and use UTC. Floating datetimes use UTC for comparisons;
-provide aware datetimes for predictable conversions. Date window bounds are inclusive with interval
-overlap; use a datetime for the end of a full day. Unbounded generators must be consumed lazily
-or supplied with a COUNT, UNTIL, or window end. Expansion scans from DTSTART; very old series
-with large windows can be expensive.
+### What are the design limits?
+- **RFC 5545 subset**: Focuses on calendar operations. Frequencies below `DAILY` (e.g. `HOURLY`, `MINUTELY`), `RDATE` period ranges (`PERIOD`), and `RANGE=THISANDFUTURE` are outside current scope.
+- **Offline privacy**: Processing is 100% offline; network requests are never initiated.
+- **Unbounded generation**: Infinite recurrence generators should always be consumed with an expansion window, `COUNT`, or `UNTIL` bound.
 
-## Development
+## Contributing
 
-From a checkout, install the development extras and run:
+Contributions, bug reports, and suggestions are welcome!
+
+### Development setup
 
 ```sh
+# Clone repository
+git clone https://github.com/YusufBeratZengin/ics-tools.git
+cd ics-tools
+
+# Install development dependencies in editable mode
 python -m pip install -e ".[dev]"
+
+# Run code style and linter
 python -m ruff check .
-python -m mypy src
-python -m pytest -q
+
+# Run static type checker
+python -m mypy src tests
+
+# Run test suite with branch coverage reporting
+python -m pytest --cov=ics_tools --cov-report=term-missing
+
+# Verify package build and metadata
 python -m build
 python -m twine check dist/*
 ```
 
-CI covers Python 3.10–3.13 on Linux and Windows. Tests use no network.
-The optional pytest cache plugin is disabled to support restricted workspaces.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for checks, commit conventions, and the maintainer's
-release procedure. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations
-and [SECURITY.md](SECURITY.md) for private vulnerability reports.
+Please review:
+- [CONTRIBUTING.md](CONTRIBUTING.md) for code style guidelines and pull request workflows.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community participation standards.
+- [SECURITY.md](SECURITY.md) for vulnerability reporting procedures.
 
 ## License
 
-[MIT](LICENSE). Copyright (c) 2026 Yusuf Berat Zengin.
+This project is licensed under the [MIT License](LICENSE).  
+Copyright (c) 2026 Yusuf Berat Zengin.

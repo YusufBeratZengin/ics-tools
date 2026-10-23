@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Standardized build metadata on Hatchling with SPDX licensing and complete development dependencies.
 
-## [0.1.0] - 2026-10-22
+## [0.1.0] - 2026-10-23
 
 ### Added
 - Core RFC 5545 iCalendar parser with byte-level line unfolding, escaping/unescaping, and parameter parsing.
