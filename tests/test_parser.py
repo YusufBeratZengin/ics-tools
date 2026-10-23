@@ -65,6 +65,7 @@ class TestParser(unittest.TestCase):
         p_float = Property(name="DTSTART", value="20261105T143000")
         flt_val = parse_date_or_datetime(p_float)
         self.assertEqual(flt_val, datetime(2026, 11, 5, 14, 30, 0))
+        assert isinstance(flt_val, datetime)
         self.assertIsNone(flt_val.tzinfo)
 
     def test_parse_google_calendar_fixture(self):
@@ -95,6 +96,7 @@ class TestParser(unittest.TestCase):
         self.assertEqual(ev.summary, "Product Keynote Rehearsal")
         self.assertEqual(ev.location, "Bosphorus Hall")
         # Timezone Europe/Istanbul
+        assert isinstance(ev.dtstart, datetime)
         self.assertIsNotNone(ev.dtstart.tzinfo)
 
     def test_parse_outlook_calendar_fixture(self):

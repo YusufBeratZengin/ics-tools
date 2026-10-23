@@ -6,6 +6,7 @@ import unittest
 from contextlib import redirect_stdout
 from datetime import date, datetime, timedelta, timezone
 from itertools import islice
+from pathlib import Path
 from unittest.mock import patch
 
 from ics_tools import (
@@ -17,7 +18,13 @@ from ics_tools import (
     serialize_calendar,
 )
 from ics_tools.cli import main
-from ics_tools.exceptions import ParseError
+from ics_tools.exceptions import (
+    ICSError,
+    ParseError,
+    RRuleError,
+    TimezoneError,
+    ValidationError,
+)
 from ics_tools.rrule import generate_recurrence_dates, parse_rrule
 from ics_tools.validator import validate_calendar
 
@@ -202,6 +209,53 @@ class TestStreamSpec(unittest.TestCase):
             next(iter(csv.DictReader(io.StringIO(expected))))["Summary"],
             calendar.events[0].summary,
         )
+
+    def test_csv_export_with_timezone_conversions(self):
+        cal = Calendar(
+            events=[
+                Event(
+                    uid="tz-test-1",
+                    dtstart=datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),
+                    summary="Aware event",
+                ),
+                Event(
+                    uid="tz-test-2",
+                    dtstart=datetime(2026, 6, 1, 10, 0),
+                    summary="Naive event",
+                ),
+            ]
+        )
+        csv_out = export_to_csv(cal, target_tz="Europe/Istanbul", expand_recurrence=False)
+        self.assertIn("+03:00", csv_out)
+
+        # Invalid target_tz gracefully handled
+        csv_invalid_tz = export_to_csv(cal, target_tz="Invalid/TZ_Name", expand_recurrence=False)
+        self.assertIn("tz-test-1", csv_invalid_tz)
+
+    def test_main_module_execution(self):
+        import runpy
+        google_ics = str(Path(__file__).parent / "fixtures" / "google_calendar.ics")
+        with (
+            patch("sys.argv", ["ics", "validate", google_ics]),
+            redirect_stdout(io.StringIO()),
+            self.assertRaises(SystemExit) as cm,
+        ):
+            runpy.run_module("ics_tools", run_name="__main__")
+        self.assertEqual(cm.exception.code, 0)
+
+    def test_exceptions_formatting(self):
+        pe = ParseError("syntax error", line_number=42, line_content="BAD:LINE")
+        self.assertIn("Line 42", str(pe))
+        self.assertIn("BAD:LINE", str(pe))
+        self.assertEqual(pe.line_number, 42)
+        self.assertEqual(pe.line_content, "BAD:LINE")
+
+        ve = ValidationError("validation error", component="VEVENT", property_name="DTSTART")
+        self.assertEqual(ve.component, "VEVENT")
+        self.assertEqual(ve.property_name, "DTSTART")
+
+        self.assertIsInstance(RRuleError("bad rrule"), ICSError)
+        self.assertIsInstance(TimezoneError("bad tz"), ICSError)
 
     def test_fixed_offset_roundtrip_preserves_instant(self):
         start = datetime(2026, 1, 1, 9, tzinfo=timezone(timedelta(hours=3)))

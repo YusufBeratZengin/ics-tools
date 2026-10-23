@@ -303,6 +303,11 @@ def build_parser() -> argparse.ArgumentParser:
         prog="ics",
         description="RFC 5545 iCalendar utility library and CLI tool.",
     )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s 0.1.0",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # merge command

@@ -60,6 +60,99 @@ class TestValidator(unittest.TestCase):
         self.assertFalse(result.is_valid)
         self.assertTrue(any("Invalid RRULE FREQ" in e.message for e in result.errors))
 
+    def test_date_and_datetime_validation(self):
+        cal_bad_date = (
+            "BEGIN:VCALENDAR\r\n"
+            "PRODID:-//Test//EN\r\n"
+            "VERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\n"
+            "UID:test-date-1\r\n"
+            "DTSTART;VALUE=DATE:2026-11-01\r\n"
+            "SUMMARY:Test\r\n"
+            "END:VEVENT\r\n"
+            "END:VCALENDAR\r\n"
+        )
+        res = validate_calendar(cal_bad_date)
+        self.assertFalse(res.is_valid)
+        self.assertTrue(any("Invalid DATE format" in e.message for e in res.errors))
+
+        cal_bad_day = (
+            "BEGIN:VCALENDAR\r\n"
+            "PRODID:-//Test//EN\r\n"
+            "VERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\n"
+            "UID:test-date-2\r\n"
+            "DTSTART;VALUE=DATE:20260230\r\n"
+            "SUMMARY:Test\r\n"
+            "END:VEVENT\r\n"
+            "END:VCALENDAR\r\n"
+        )
+        res2 = validate_calendar(cal_bad_day)
+        self.assertFalse(res2.is_valid)
+        self.assertTrue(any("Invalid calendar date components" in e.message for e in res2.errors))
+
+        # Leap second valid DATE-TIME
+        cal_leap = (
+            "BEGIN:VCALENDAR\r\n"
+            "PRODID:-//Test//EN\r\n"
+            "VERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\n"
+            "UID:test-leap-1\r\n"
+            "DTSTART:20261231T235960Z\r\n"
+            "SUMMARY:Test\r\n"
+            "END:VEVENT\r\n"
+            "END:VCALENDAR\r\n"
+        )
+        res_leap = validate_calendar(cal_leap)
+        self.assertTrue(res_leap.is_valid)
+
+    def test_rrule_advanced_validation(self):
+        # Both COUNT and UNTIL
+        bad_both = (
+            "BEGIN:VCALENDAR\r\nPRODID:-//Test//EN\r\nVERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\nUID:1\r\nDTSTART:20260101T090000Z\r\n"
+            "RRULE:FREQ=DAILY;COUNT=5;UNTIL=20260110T090000Z\r\nSUMMARY:T\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        self.assertFalse(validate_calendar(bad_both).is_valid)
+
+        # Missing FREQ
+        bad_nofreq = (
+            "BEGIN:VCALENDAR\r\nPRODID:-//Test//EN\r\nVERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\nUID:1\r\nDTSTART:20260101T090000Z\r\n"
+            "RRULE:INTERVAL=2\r\nSUMMARY:T\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        self.assertFalse(validate_calendar(bad_nofreq).is_valid)
+
+        # Invalid INTERVAL (<1 and non-int)
+        bad_interval = (
+            "BEGIN:VCALENDAR\r\nPRODID:-//Test//EN\r\nVERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\nUID:1\r\nDTSTART:20260101T090000Z\r\n"
+            "RRULE:FREQ=DAILY;INTERVAL=0\r\nSUMMARY:T\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        self.assertFalse(validate_calendar(bad_interval).is_valid)
+
+        # Invalid BYDAY
+        bad_byday = (
+            "BEGIN:VCALENDAR\r\nPRODID:-//Test//EN\r\nVERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\nUID:1\r\nDTSTART:20260101T090000Z\r\n"
+            "RRULE:FREQ=WEEKLY;BYDAY=FOO\r\nSUMMARY:T\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        self.assertFalse(validate_calendar(bad_byday).is_valid)
+
+        # Missing SUMMARY produces warning
+        no_summary = (
+            "BEGIN:VCALENDAR\r\nPRODID:-//Test//EN\r\nVERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\nUID:1\r\nDTSTART:20260101T090000Z\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        res_no_sum = validate_calendar(no_summary)
+        self.assertTrue(res_no_sum.is_valid)
+        self.assertTrue(len(res_no_sum.warnings) > 0)
+
 
 if __name__ == "__main__":
     unittest.main()

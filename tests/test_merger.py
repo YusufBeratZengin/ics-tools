@@ -112,6 +112,61 @@ class TestMerger(unittest.TestCase):
         merged = merge_calendars([cal1, cal2])
         self.assertEqual(len(merged.timezones), 1)
 
+    def test_merge_empty_list(self):
+        merged = merge_calendars([])
+        self.assertEqual(len(merged.events), 0)
+        self.assertEqual(len(merged.timezones), 0)
+
+    def test_merge_other_components(self):
+        todo = Component(name="VTODO")
+        todo.add_property("UID", "todo-1")
+        cal = Calendar(other_components=[todo])
+        merged = merge_calendars([cal])
+        self.assertEqual(len(merged.other_components), 1)
+        self.assertEqual(merged.other_components[0].get_property_value("UID"), "todo-1")
+
+    def test_deduplication_by_dtstamp(self):
+        ev1 = Event(
+            uid="uid-stamp",
+            dtstart=datetime(2026, 11, 1, 10, 0, tzinfo=timezone.utc),
+            summary="First Stamp",
+            sequence=0,
+            dtstamp=datetime(2026, 10, 1, 10, 0, tzinfo=timezone.utc),
+        )
+        ev2 = Event(
+            uid="uid-stamp",
+            dtstart=datetime(2026, 11, 1, 10, 0, tzinfo=timezone.utc),
+            summary="Later Stamp",
+            sequence=0,
+            dtstamp=datetime(2026, 10, 2, 10, 0, tzinfo=timezone.utc),
+        )
+        # ev2 has newer dtstamp, so ev2 wins
+        merged = merge_calendars([Calendar(events=[ev1]), Calendar(events=[ev2])])
+        self.assertEqual(merged.events[0].summary, "Later Stamp")
+
+        # Reverse order: ev2 still wins over ev1
+        merged2 = merge_calendars([Calendar(events=[ev2]), Calendar(events=[ev1])])
+        self.assertEqual(merged2.events[0].summary, "Later Stamp")
+
+    def test_deduplication_last_modified_precedence(self):
+        ev1 = Event(
+            uid="uid-lm-prec",
+            dtstart=datetime(2026, 11, 1, 10, 0, tzinfo=timezone.utc),
+            summary="Newer LM",
+            sequence=0,
+            last_modified=datetime(2026, 10, 20, 10, 0, tzinfo=timezone.utc),
+        )
+        ev2 = Event(
+            uid="uid-lm-prec",
+            dtstart=datetime(2026, 11, 1, 10, 0, tzinfo=timezone.utc),
+            summary="Older LM",
+            sequence=0,
+            last_modified=datetime(2026, 10, 10, 10, 0, tzinfo=timezone.utc),
+        )
+        # ev1 is older in list, but has newer LM so it is NOT replaced by ev2
+        merged = merge_calendars([Calendar(events=[ev1]), Calendar(events=[ev2])])
+        self.assertEqual(merged.events[0].summary, "Newer LM")
+
 
 if __name__ == "__main__":
     unittest.main()

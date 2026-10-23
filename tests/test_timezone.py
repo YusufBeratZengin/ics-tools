@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from ics_tools.models import Component
 from ics_tools.timezone import (
+    EmbeddedVTimezone,
     TimezoneResolver,
     format_tzoffset,
     parse_tzoffset,
@@ -69,6 +70,8 @@ class TestTimezone(unittest.TestCase):
 
         resolver = TimezoneResolver([vtz])
         resolved = resolver.resolve("CustomTz/TestOffset")
+        self.assertIsInstance(resolved, EmbeddedVTimezone)
+        assert isinstance(resolved, EmbeddedVTimezone)
         self.assertEqual(resolved.tzid, "CustomTz/TestOffset")
 
         dt = datetime(2026, 11, 1, 12, 0, tzinfo=resolved)
