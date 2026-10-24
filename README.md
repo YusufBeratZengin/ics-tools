@@ -1,26 +1,30 @@
 # ics-tools
 
-[![CI](https://github.com/YusufBeratZengin/ics-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/YusufBeratZengin/ics-tools/actions/workflows/ci.yml)
-[![PyPI - Version](https://img.shields.io/pypi/v/ics-tools.svg)](https://pypi.org/project/ics-tools/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](pyproject.toml)
-[![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](pyproject.toml)
+[![CI](https://github.com/YusufBeratZengin/ics-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/YusufBeratZengin/ics-tools/actions/workflows/ci.yml) [![PyPI - Version](https://img.shields.io/pypi/v/ics-tools.svg)](https://pypi.org/project/ics-tools/) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](pyproject.toml) [![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](pyproject.toml)
 
 Parse, merge, filter, validate, and export iCalendar (.ics) files, with recurring event expansion.
+Runs offline using only the Python standard library.
+
+Install from the repository root: `python -m pip install .`
+Try it: `ics validate examples/demo.ics`
 
 [English](README.md) | [Türkçe](README.tr.md)
+
+PyPI publication is pending; the version badge will become available after the first release. Install from source for now.
+
+## Demo
 
 ![ics-tools CLI Demo](docs/demo.svg)
 
 ## Why ics-tools?
 
-- **Zero runtime dependencies**: Built exclusively with Python standard library modules (`zoneinfo`, `re`, `datetime`, `csv`, `argparse`). Instant installation, zero supply-chain risk, and ultra-lightweight footprint.
+- **Zero runtime dependencies**: Uses Python standard library modules (`zoneinfo`, `re`, `datetime`, `csv`, `argparse`), with no third-party runtime packages to install.
 - **Local & privacy-first**: Every operation runs entirely offline on your local machine. Calendar entries, locations, and attendee notes never leave your computer.
-- **Comprehensive recurrence engine**: Robust RFC 5545 RRULE expansion (DAILY, WEEKLY, MONTHLY, YEARLY) with support for INTERVAL, COUNT, UNTIL, BYDAY (with numeric ordinals), BYMONTH, BYSETPOS, EXDATE, RDATE, and RECURRENCE-ID exception overrides.
+- **Recurring events**: Expands DAILY, WEEKLY, MONTHLY, and YEARLY rules, with date filters, occurrence limits, exclusions, and RECURRENCE-ID overrides. See the support table below for the supported RFC 5545 subset.
 
 ## Quick start
 
-Requires Python 3.10 or later. Install directly from source or package:
+Requires Python 3.10 or later. Run these commands from a source checkout:
 
 ```sh
 # Install from repository root
@@ -33,7 +37,7 @@ ics validate examples/demo.ics
 ics list examples/demo.ics --from 2026-01-01 --window 7d
 ```
 
-> The installed CLI command is `ics`. You can also execute it as `python -m ics_tools`.
+> The installed CLI command is `ics`. For example, `python -m ics_tools validate examples/demo.ics` runs the same validator.
 
 ## Usage examples
 
@@ -60,7 +64,9 @@ ics to-csv examples/demo.ics --raw -o is/events-raw.csv
 ```
 
 **CLI Notes:**
-- Filter, list, and to-csv accept `-` or omitted file arguments to read from standard input (`stdin`).
+
+- All commands accept `-` to read standard input (`stdin`). Filter, list, and to-csv also read stdin when the file argument is omitted. Merge and validate accept `-` once alongside file paths.
+- Invalid arguments, including unresolvable explicit `--tz` values, exit with code 2 and a usage error. Calendar validation errors exit with code 1.
 - When `-o` / `--output` is omitted, results are emitted to standard output (`stdout`).
 - CSV output columns: `UID`, `Summary`, `Description`, `Location`, `Start`, `End`, `Duration`, `AllDay`, `Status`, and `RecurrenceId`.
 
@@ -109,7 +115,7 @@ assert "Demo sync" in csv_text
 | --- | --- | --- |
 | `--from`, `--to` | `filter`, `list`, `to-csv` | ISO 8601 date (`YYYY-MM-DD`) or datetime (`YYYY-MM-DDTHH:MM:SSZ`). Dates imply midnight UTC. |
 | `--window` | `list`, `to-csv` | Shorthand duration window: `30d` (days), `2w` (weeks), `24h` (hours), or `1m` (30 days). Explicit `--to` overrides this. |
-| `--tz` | `list`, `to-csv` | Target IANA timezone identifier (e.g. `Europe/Istanbul`, `America/New_York`) or supported Windows timezone name. |
+| `--tz` | `list`, `to-csv` | Target IANA timezone identifier (e.g. `Europe/Istanbul`, `America/New_York`) or supported Windows timezone name. Unresolvable values are rejected with exit code 2. |
 | `--match` | `filter` | Regular expression matching against `SUMMARY`, `DESCRIPTION`, `LOCATION`, and `CATEGORIES`. |
 | `-i`, `--case-sensitive` | `filter` | Enforce case-sensitive regex matching (case-insensitive by default). |
 | `--raw` | `to-csv` | Export raw event records without expanding recurring series. |
@@ -136,7 +142,7 @@ assert "Demo sync" in csv_text
 `serialize_calendar` orders properties deterministically, folds lines at 75 octets on UTF-8 character boundaries (avoiding splitting multibyte sequences), and terminates all lines with CRLF (`\r\n`) in accordance with RFC 5545 Section 3.1. Missing `DTSTAMP` properties are assigned on initial serialization and preserved across consecutive writes.
 
 ### How are timezones resolved?
-Resolution prioritizes the standard Python `zoneinfo` module against system IANA definitions. If a TZID is not found or the system database is unavailable (common on minimal Windows installations), `ics-tools` resolves standard Windows timezone aliases and inspects embedded `VTIMEZONE` components as a fallback. Unresolved timezones fall back to UTC with a logged warning.
+Resolution prioritizes the standard Python `zoneinfo` module against system IANA definitions. If a TZID is not found or the system database is unavailable (common on minimal Windows installations), `ics-tools` uses built-in definitions for common zones, Windows timezone aliases, and embedded `VTIMEZONE` components. Unresolved TZIDs in calendar files fall back to UTC with a logged warning. An unresolvable explicit CLI `--tz` value is a usage error (exit code 2); this leaves library fallback behavior unchanged.
 
 ### What are the design limits?
 - **RFC 5545 subset**: Focuses on calendar operations. Frequencies below `DAILY` (e.g. `HOURLY`, `MINUTELY`), `RDATE` period ranges (`PERIOD`), and `RANGE=THISANDFUTURE` are outside current scope.
@@ -169,9 +175,13 @@ python -m pytest --cov=ics_tools --cov-report=term-missing
 # Verify package build and metadata
 python -m build
 python -m twine check dist/*
+
+# Regenerate the demo from actual CLI output
+python scripts/make-demo.py
 ```
 
 Please review:
+
 - [CONTRIBUTING.md](CONTRIBUTING.md) for code style guidelines and pull request workflows.
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community participation standards.
 - [SECURITY.md](SECURITY.md) for vulnerability reporting procedures.

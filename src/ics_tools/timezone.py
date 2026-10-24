@@ -244,6 +244,10 @@ class TimezoneResolver:
         5. Attempt lookup via embedded VTIMEZONE fallback.
         6. If timezone cannot be resolved, return UTC with warning log.
         """
+        return self._resolve(tzid)
+
+    def _resolve(self, tzid: str, *, strict: bool = False) -> tzinfo:
+        """Resolve a timezone, optionally rejecting the final UTC fallback."""
         clean_tzid = tzid.strip().strip('"')
 
         # Fast path for common UTC representations
@@ -296,6 +300,9 @@ class TimezoneResolver:
         # 5. Fallback to embedded VTIMEZONE rules
         if clean_tzid in self._embedded_map:
             return self._embedded_map[clean_tzid]
+
+        if strict:
+            raise ValueError(f"Unknown or unsupported timezone: {tzid!r}")
 
         logger.warning(
             "Unknown or unsupported timezone %r; falling back to UTC. "

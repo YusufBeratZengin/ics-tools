@@ -8,11 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- CLI regression coverage for invalid dates, durations, timezones, regexes, missing arguments, stdin, and output errors.
+- Standard input (`-`) support for `validate` and `merge`, including mixed stdin/file inputs.
 - Regression tests for frequency filters, ordinal rules, empty periods, CSV streams, and sub-day CLI windows.
 - Synthetic runnable demo, bilingual usage documentation, community templates, and tag-based trusted publishing.
 - Linux/Windows Python 3.10–3.13 CI with lint, typing, tests, and package checks.
 
 ### Fixed
+- Invalid CLI dates (including impossible calendar dates), windows, and regexes now produce usage errors with exit code 2 instead of tracebacks.
+- Explicit unresolved `--tz` values now fail with exit code 2 in `list` and `to-csv`; calendar TZID and library UTC fallbacks remain supported.
+- Window arithmetic overflow and file output errors are reported without tracebacks.
+- Demo SVG preserves terminal spacing and fits the actual captured output.
 - Recurrence bounds now apply alongside COUNT and stop even when periods have no matching candidates.
 - DAILY filters, YEARLY expansion across months, annual ordinals, and BYSETPOS ordering and deduplication.
 - Overrides moved into the window from a later instance are included.
@@ -22,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ruff and mypy errors without changing the established error-reporting and timezone fallback boundaries.
 
 ### Changed
+- Clarified pending PyPI publication and stdin/error behavior in both READMEs; aligned their headings and polished Turkish wording.
 - Standardized build metadata on Hatchling with SPDX licensing and complete development dependencies.
 
 ## [0.1.0] - 2026-10-23

@@ -34,7 +34,7 @@ def build_demo_lines() -> list[tuple[str, str]]:
     # 1. Validate
     lines.append(("cmd", "ics validate examples/demo.ics"))
     val_out = run_cli_cmd(["validate", "examples/demo.ics"])
-    lines.append(("success", val_out))
+    lines.extend(("success", line) for line in val_out.splitlines())
 
     lines.append(("empty", ""))
 
@@ -62,7 +62,8 @@ def build_demo_lines() -> list[tuple[str, str]]:
 
 
 def generate_svg(lines: list[tuple[str, str]], output_path: Path) -> None:
-    width = 860
+    # Leave room for the longest real output line, including wide CSV rows.
+    width = max(860, 56 + int(max(len(text) for _, text in lines) * 8.5))
     line_height = 22
     pad_top = 56
     pad_bottom = 24
@@ -98,7 +99,9 @@ def generate_svg(lines: list[tuple[str, str]], output_path: Path) -> None:
 
     content = "\n  ".join(spans)
 
-    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="100%" height="auto">
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" role="img" aria-labelledby="title desc">
+  <title id="title">ics-tools CLI demo</title>
+  <desc id="desc">Real output from validating, listing, and exporting the synthetic demo calendar.</desc>
   <defs>
     <style>
       .term-text {{
@@ -130,14 +133,14 @@ def generate_svg(lines: list[tuple[str, str]], output_path: Path) -> None:
   <text x="{width // 2}" y="24" text-anchor="middle" class="window-header">ics-tools — CLI Demo</text>
 
   <!-- Terminal Content -->
-  <g class="term-text">
+  <g class="term-text" xml:space="preserve">
   {content}
   </g>
 </svg>
 """
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(svg, encoding="utf-8")
+    output_path.write_text(svg, encoding="utf-8", newline="\n")
     print(f"Generated {output_path} ({len(lines)} lines, {width}x{height})")
 
 

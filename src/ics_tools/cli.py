@@ -21,17 +21,12 @@ from ics_tools.writer import serialize_calendar
 def _parse_iso_date_or_datetime(val_str: str) -> datetime | date:
     """Parse an ISO date or datetime string (e.g. 2026-10-22 or 2026-10-22T19:00:00)."""
     val_str = val_str.strip()
-    # Check YYYY-MM-DD or YYYYMMDD
-    if re.match(r"^\d{4}-\d{2}-\d{2}$", val_str):
-        parts = [int(p) for p in val_str.split("-")]
-        return date(parts[0], parts[1], parts[2])
-    if re.match(r"^\d{8}$", val_str):
-        return date(int(val_str[:4]), int(val_str[4:6]), int(val_str[6:8]))
-
-    # Datetime with fromisoformat
     try:
-        dt = datetime.fromisoformat(val_str.replace("Z", "+00:00"))
-        return dt
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", val_str):
+            return date.fromisoformat(val_str)
+        if re.fullmatch(r"\d{8}", val_str):
+            return date(int(val_str[:4]), int(val_str[4:6]), int(val_str[6:8]))
+        return datetime.fromisoformat(val_str.replace("Z", "+00:00"))
     except ValueError as err:
         raise argparse.ArgumentTypeError(f"Invalid date/datetime value: {val_str!r}") from err
 
@@ -44,16 +39,32 @@ def _parse_window_param(val_str: str) -> timedelta:
         raise argparse.ArgumentTypeError(
             f"Invalid window format: {val_str!r}. Expected e.g. '30d', '7d', '2w', '24h', '1m'"
         )
-    num, unit = int(match.group(1)), match.group(2)
-    if unit == "d":
-        return timedelta(days=num)
-    elif unit == "w":
-        return timedelta(weeks=num)
-    elif unit == "h":
-        return timedelta(hours=num)
-    elif unit == "m":
-        return timedelta(days=num * 30)
-    return timedelta(days=30)
+    try:
+        num, unit = int(match.group(1)), match.group(2)
+        hours_per_unit = {"d": 24, "w": 168, "h": 1, "m": 720}
+        return timedelta(hours=num * hours_per_unit[unit])
+    except (ValueError, OverflowError) as err:
+        raise argparse.ArgumentTypeError(f"Window duration is too large: {val_str!r}") from err
+
+
+def _parse_timezone(value: str) -> str:
+    """Validate an explicit CLI timezone without changing file TZID fallback."""
+    from ics_tools.timezone import DEFAULT_RESOLVER
+
+    try:
+        DEFAULT_RESOLVER._resolve(value, strict=True)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(str(err)) from err
+    return value
+
+
+def _parse_pattern(value: str) -> str:
+    """Reject invalid regular expressions before reading calendar input."""
+    try:
+        re.compile(value, re.IGNORECASE)
+    except (re.error, ValueError, OverflowError, RecursionError) as err:
+        raise argparse.ArgumentTypeError(f"Invalid regex: {err}") from err
+    return value
 
 
 def _window_end(start: datetime | date, duration: timedelta) -> datetime | date:
@@ -70,11 +81,12 @@ def cmd_merge(args: argparse.Namespace) -> int:
     calendars = []
     for filepath in args.files:
         path = Path(filepath)
-        if not path.is_file():
+        if filepath != "-" and not path.is_file():
             sys.stderr.write(f"Error: file not found: {filepath}\n")
             return 1
         try:
-            cal = parse_calendar(path.read_text(encoding="utf-8-sig"))
+            content = sys.stdin.read() if filepath == "-" else path.read_text(encoding="utf-8-sig")
+            cal = parse_calendar(content)
             calendars.append(cal)
         except Exception as err:  # noqa: BLE001 - Public boundary reports errors without a traceback.
             sys.stderr.write(f"Error parsing {filepath}: {err}\n")
@@ -111,13 +123,10 @@ def cmd_filter(args: argparse.Namespace) -> int:
         sys.stderr.write(f"Error parsing iCalendar stream: {err}\n")
         return 1
 
-    from_dt = _parse_iso_date_or_datetime(args.from_dt) if args.from_dt else None
-    to_dt = _parse_iso_date_or_datetime(args.to_dt) if args.to_dt else None
-
     filtered = filter_calendar(
         cal,
-        from_dt=from_dt,
-        to_dt=to_dt,
+        from_dt=args.from_dt,
+        to_dt=args.to_dt,
         pattern=args.match,
         case_sensitive=args.case_sensitive,
     )
@@ -153,26 +162,19 @@ def cmd_list(args: argparse.Namespace) -> int:
 
     # Determine time window
     now = datetime.now(tz=timezone.utc)
-    if args.from_dt:
-        window_start = _parse_iso_date_or_datetime(args.from_dt)
-    else:
-        window_start = now.date()
+    window_start = args.from_dt or now.date()
 
     if args.to_dt:
-        window_end = _parse_iso_date_or_datetime(args.to_dt)
-    elif args.window:
-        duration = _parse_window_param(args.window)
-        window_end = _window_end(window_start, duration)
+        window_end = args.to_dt
+    elif args.window is not None:
+        window_end = _window_end(window_start, args.window)
     else:
         window_end = (now + timedelta(days=30)).date()
 
     target_tz = None
     if args.tz:
         from ics_tools.timezone import DEFAULT_RESOLVER
-        try:
-            target_tz = DEFAULT_RESOLVER.resolve(args.tz)
-        except Exception as err:  # noqa: BLE001 - Public boundary reports errors without a traceback.
-            sys.stderr.write(f"Warning: unknown timezone {args.tz!r}: {err}\n")
+        target_tz = DEFAULT_RESOLVER.resolve(args.tz)
 
     # Collect and sort occurrences
     overrides = {(ev.uid, ev.recurrence_id.isoformat()): ev for ev in cal.events if ev.recurrence_id}
@@ -225,12 +227,12 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
     for filepath in args.files:
         path = Path(filepath)
-        if not path.is_file():
+        if filepath != "-" and not path.is_file():
             sys.stderr.write(f"File not found: {filepath}\n")
             has_errors = True
             continue
 
-        raw = path.read_text(encoding="utf-8-sig")
+        raw = sys.stdin.read() if filepath == "-" else path.read_text(encoding="utf-8-sig")
         result = validate_calendar(raw)
 
         if result.is_valid:
@@ -269,15 +271,14 @@ def cmd_to_csv(args: argparse.Namespace) -> int:
         sys.stderr.write(f"Error parsing iCalendar: {err}\n")
         return 1
 
-    window_start = _parse_iso_date_or_datetime(args.from_dt) if args.from_dt else None
-    window_end = _parse_iso_date_or_datetime(args.to_dt) if args.to_dt else None
+    window_start = args.from_dt
+    window_end = args.to_dt
 
-    if args.window and window_end is None:
-        duration = _parse_window_param(args.window)
+    if args.window is not None and window_end is None:
         now = datetime.now(tz=timezone.utc).date()
         if window_start is None:
             window_start = now
-        window_end = _window_end(window_start, duration)
+        window_end = _window_end(window_start, args.window)
 
     csv_data = export_to_csv(
         cal,
@@ -312,39 +313,60 @@ def build_parser() -> argparse.ArgumentParser:
 
     # merge command
     p_merge = subparsers.add_parser("merge", help="Merge multiple calendar files with deduplication")
-    p_merge.add_argument("files", nargs="+", help="Input iCalendar files to merge")
+    p_merge.add_argument("files", nargs="+", help="Input iCalendar files to merge; use '-' once for stdin")
     p_merge.add_argument("-o", "--output", help="Output file path (default stdout)")
 
     # filter command
     p_filter = subparsers.add_parser("filter", help="Filter calendar by date range or regex")
     p_filter.add_argument("file", nargs="?", default="-", help="Input .ics file or '-' for stdin")
     p_filter.add_argument("-o", "--output", help="Output file path (default stdout)")
-    p_filter.add_argument("--from", dest="from_dt", help="Start of time window (ISO 8601 date or datetime)")
-    p_filter.add_argument("--to", dest="to_dt", help="End of time window (ISO 8601 date or datetime)")
-    p_filter.add_argument("--match", help="Regex pattern matching summary, description, or location")
+    p_filter.add_argument(
+        "--from", dest="from_dt", type=_parse_iso_date_or_datetime,
+        help="Start of time window (ISO 8601 date or datetime)",
+    )
+    p_filter.add_argument(
+        "--to", dest="to_dt", type=_parse_iso_date_or_datetime,
+        help="End of time window (ISO 8601 date or datetime)",
+    )
+    p_filter.add_argument("--match", type=_parse_pattern, help="Regex pattern matching summary, description, or location")
     p_filter.add_argument("-i", "--case-sensitive", action="store_true", help="Perform case-sensitive regex search")
 
     # list command
     p_list = subparsers.add_parser("list", help="List expanded calendar events within a time window")
     p_list.add_argument("file", nargs="?", default="-", help="Input .ics file or '-' for stdin")
-    p_list.add_argument("--window", help="Window duration (e.g. 30d, 7d, 2w, 1m)")
-    p_list.add_argument("--from", dest="from_dt", help="Start of window (ISO date or datetime)")
-    p_list.add_argument("--to", dest="to_dt", help="End of window (ISO date or datetime)")
-    p_list.add_argument("--tz", help="Timezone for listing output (e.g. Europe/Istanbul)")
+    p_list.add_argument("--window", type=_parse_window_param, help="Window duration (e.g. 30d, 7d, 2w, 1m)")
+    p_list.add_argument(
+        "--from", dest="from_dt", type=_parse_iso_date_or_datetime,
+        help="Start of window (ISO date or datetime)",
+    )
+    p_list.add_argument(
+        "--to", dest="to_dt", type=_parse_iso_date_or_datetime,
+        help="End of window (ISO date or datetime)",
+    )
+    p_list.add_argument("--tz", type=_parse_timezone, help="Timezone for listing output (e.g. Europe/Istanbul)")
 
     # validate command
     p_validate = subparsers.add_parser("validate", help="Validate RFC 5545 compliance of calendar files")
-    p_validate.add_argument("files", nargs="+", help="One or more .ics files to validate")
+    p_validate.add_argument("files", nargs="+", help="One or more .ics files to validate; use '-' once for stdin")
 
     # to-csv command
     p_csv = subparsers.add_parser("to-csv", help="Export calendar events to CSV format")
     p_csv.add_argument("file", nargs="?", default="-", help="Input .ics file or '-' for stdin")
     p_csv.add_argument("-o", "--output", help="Output CSV file path (default stdout)")
-    p_csv.add_argument("--window", help="Window duration (e.g. 30d, 7d, 2w, 1m)")
-    p_csv.add_argument("--from", dest="from_dt", help="Start of window (ISO date or datetime)")
-    p_csv.add_argument("--to", dest="to_dt", help="End of window (ISO date or datetime)")
-    p_csv.add_argument("--tz", help="Convert datetimes to specified timezone (e.g. Europe/Istanbul)")
+    p_csv.add_argument("--window", type=_parse_window_param, help="Window duration (e.g. 30d, 7d, 2w, 1m)")
+    p_csv.add_argument(
+        "--from", dest="from_dt", type=_parse_iso_date_or_datetime,
+        help="Start of window (ISO date or datetime)",
+    )
+    p_csv.add_argument(
+        "--to", dest="to_dt", type=_parse_iso_date_or_datetime,
+        help="End of window (ISO date or datetime)",
+    )
+    p_csv.add_argument("--tz", type=_parse_timezone, help="Convert datetimes to specified timezone (e.g. Europe/Istanbul)")
     p_csv.add_argument("--raw", action="store_true", help="Export raw events without recurrence expansion")
+
+    for command_parser in (p_merge, p_filter, p_list, p_validate, p_csv):
+        command_parser.set_defaults(_parser=command_parser)
 
     return parser
 
@@ -354,18 +376,24 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "merge":
-        return cmd_merge(args)
-    elif args.command == "filter":
-        return cmd_filter(args)
-    elif args.command == "list":
-        return cmd_list(args)
-    elif args.command == "validate":
-        return cmd_validate(args)
-    elif args.command == "to-csv":
-        return cmd_to_csv(args)
+    if hasattr(args, "files") and args.files.count("-") > 1:
+        args._parser.error("stdin ('-') may only be read once")
 
-    return 1
+    commands = {
+        "merge": cmd_merge,
+        "filter": cmd_filter,
+        "list": cmd_list,
+        "validate": cmd_validate,
+        "to-csv": cmd_to_csv,
+    }
+    try:
+        return commands[args.command](args)
+    except (ValueError, OverflowError, re.error) as err:
+        args._parser.error(str(err))
+    except OSError as err:
+        sys.stderr.write(f"Error: {err}\n")
+        return 1
+    return 2
 
 
 if __name__ == "__main__":

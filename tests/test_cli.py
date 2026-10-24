@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 # Ensure src/ is on sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -179,14 +180,6 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("No events found", buf_out.getvalue())
 
-    def test_cli_list_unknown_tz(self):
-        google_ics = str(FIXTURES_DIR / "google_calendar.ics")
-        buf_out = io.StringIO()
-        with redirect_stdout(buf_out):
-            code = main(["list", google_ics, "--from", "2026-11-01", "--window", "2w", "--tz", "NonExistent/Zone"])
-        self.assertEqual(code, 0)
-        self.assertIn("Q4 Sprint Planning", buf_out.getvalue())
-
     def test_cli_validate_missing_file(self):
         buf_err = io.StringIO()
         with redirect_stderr(buf_err):
@@ -241,6 +234,132 @@ class TestCLI(unittest.TestCase):
         self.assertIsInstance(subday_end, datetime)
         assert isinstance(subday_end, datetime)
         self.assertEqual(subday_end.hour, 12)
+
+
+class TestCLIUsageErrors(unittest.TestCase):
+    def assert_usage_error(self, argv, message="error:"):
+        output, error = io.StringIO(), io.StringIO()
+        with redirect_stdout(output), redirect_stderr(error), self.assertRaises(SystemExit) as exc:
+            main(argv)
+        self.assertEqual(exc.exception.code, 2)
+        self.assertIn(message, error.getvalue())
+        self.assertNotIn("Traceback", error.getvalue())
+        self.assertEqual(output.getvalue(), "")
+
+    def test_invalid_dates(self):
+        for command in ("filter", "list", "to-csv"):
+            for option in ("--from", "--to"):
+                for value in ("notadate", "2026-02-30", "20260230", "2026-13-01", "0000-01-01"):
+                    with self.subTest(command=command, option=option, value=value), patch("sys.stdin") as stdin:
+                        self.assert_usage_error([command, option, value], "Invalid date/datetime")
+                        stdin.read.assert_not_called()
+
+    def test_invalid_windows(self):
+        for command in ("list", "to-csv"):
+            for value in ("abc", "-1d", "1.5h", "999999999999999999999w", "9" * 5000 + "d"):
+                with self.subTest(command=command, value=value), patch("sys.stdin") as stdin:
+                    self.assert_usage_error([command, f"--window={value}"])
+                    stdin.read.assert_not_called()
+
+    def test_unknown_explicit_timezones(self):
+        for command in ("list", "to-csv"):
+            for value in ("Mars/X", "NonExistent/Zone", ""):
+                with self.subTest(command=command, value=value), patch("sys.stdin") as stdin:
+                    self.assert_usage_error([command, "--tz", value], "Unknown or unsupported timezone")
+                    stdin.read.assert_not_called()
+
+    def test_invalid_regex(self):
+        for pattern in ("[", "(", "*", "(?invalid)", "a{99999999999999999999}", "(" * 2000):
+            with self.subTest(pattern=pattern):
+                self.assert_usage_error(["filter", "--match", pattern], "Invalid regex")
+
+    def test_window_past_maximum_date(self):
+        raw = (FIXTURES_DIR / "google_calendar.ics").read_text(encoding="utf-8")
+        for command in ("list", "to-csv"):
+            with self.subTest(command=command), patch("sys.stdin", io.StringIO(raw)):
+                self.assert_usage_error([command, "--from", "9999-12-31", "--window", "2d"])
+
+    def test_missing_or_unknown_arguments(self):
+        for argv in (["list", "--from"], ["list", "--tz"], ["list", "--window"],
+                     ["filter", "--match"], ["validate"], ["merge"], ["unknown"],
+                     ["list", "--unknown"]):
+            with self.subTest(argv=argv):
+                self.assert_usage_error(argv)
+
+    def test_stdin_combined_with_files(self):
+        filepath = FIXTURES_DIR / "google_calendar.ics"
+        for command in ("merge", "validate"):
+            with (
+                self.subTest(command=command),
+                patch("sys.stdin", io.StringIO(filepath.read_text(encoding="utf-8"))),
+                redirect_stdout(io.StringIO()) as output,
+                redirect_stderr(io.StringIO()) as error,
+            ):
+                self.assertEqual(main([command, "-", str(filepath)]), 0)
+                self.assertEqual(error.getvalue(), "")
+                if command == "merge":
+                    self.assertEqual(len(parse_calendar(output.getvalue()).events), 2)
+                else:
+                    self.assertIn("VALID: -", output.getvalue())
+                    self.assertIn(f"VALID: {filepath}", output.getvalue())
+
+    def test_invalid_stdin_reports_calendar_error(self):
+        for command in ("merge", "validate"):
+            with (
+                self.subTest(command=command),
+                patch("sys.stdin", io.StringIO("garbage")),
+                redirect_stderr(io.StringIO()) as error,
+            ):
+                self.assertEqual(main([command, "-"]), 1)
+                self.assertNotIn("File not found", error.getvalue())
+                self.assertNotIn("Traceback", error.getvalue())
+                self.assertIn("INVALID: -" if command == "validate" else "Error parsing -", error.getvalue())
+
+    def test_repeated_stdin_rejected(self):
+        for command in ("merge", "validate"):
+            with self.subTest(command=command), patch("sys.stdin") as stdin:
+                self.assert_usage_error([command, "-", "-"], "may only be read once")
+                stdin.read.assert_not_called()
+
+    def test_explicit_timezone_conversion(self):
+        for command in ("list", "to-csv"):
+            for tz in ("UTC", "Europe/Istanbul", "Turkey Standard Time"):
+                with (
+                    self.subTest(command=command, tz=tz),
+                    redirect_stdout(io.StringIO()) as output,
+                    redirect_stderr(io.StringIO()) as error,
+                ):
+                    self.assertEqual(main([command, "examples/demo.ics", "--from", "2026-01-01",
+                                           "--window", "7d", "--tz", tz]), 0)
+                    self.assertEqual(error.getvalue(), "")
+                    self.assertIn("Demo sync", output.getvalue())
+                    if tz != "UTC":
+                        self.assertIn("12:00", output.getvalue())  # demo starts at 09:00 UTC
+
+    def test_file_timezone_keeps_utc_fallback(self):
+        raw = "\r\n".join([
+            "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//CLI test//EN",
+            "BEGIN:VEVENT", "UID:synthetic", "DTSTAMP:20260101T000000Z",
+            "DTSTART;TZID=Mars/X:20260101T090000", "SUMMARY:Fallback demo",
+            "END:VEVENT", "END:VCALENDAR", "",
+        ])
+        for command in ("list", "to-csv"):
+            with (
+                self.subTest(command=command),
+                patch("sys.stdin", io.StringIO(raw)),
+                redirect_stdout(io.StringIO()) as output,
+                self.assertLogs("ics_tools.timezone", level="WARNING") as logs,
+            ):
+                self.assertEqual(main([command, "-", "--from", "2026-01-01", "--window", "7d"]), 0)
+                self.assertIn("Fallback demo", output.getvalue())
+                self.assertIn("falling back to UTC", " ".join(logs.output))
+
+    def test_output_directory_reports_io_error(self):
+        for command in ("filter", "merge", "to-csv"):
+            with self.subTest(command=command), redirect_stderr(io.StringIO()) as error:
+                self.assertEqual(main([command, "examples/demo.ics", "-o", "."]), 1)
+                self.assertIn("Error:", error.getvalue())
+                self.assertNotIn("Traceback", error.getvalue())
 
 
 if __name__ == "__main__":

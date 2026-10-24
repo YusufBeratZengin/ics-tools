@@ -1,4 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 410" width="100%" height="auto">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1246 410" width="1246" height="410" role="img" aria-labelledby="title desc">
+  <title id="title">ics-tools CLI demo</title>
+  <desc id="desc">Real output from validating, listing, and exporting the synthetic demo calendar.</desc>
   <defs>
     <style>
       .term-text {
@@ -20,17 +22,17 @@
   </defs>
 
   <!-- Window Container -->
-  <rect x="0.5" y="0.5" width="859" height="409" rx="10" ry="10" fill="url(#bg-grad)" stroke="#30363d" stroke-width="1"/>
+  <rect x="0.5" y="0.5" width="1245" height="409" rx="10" ry="10" fill="url(#bg-grad)" stroke="#30363d" stroke-width="1"/>
 
   <!-- Title bar -->
-  <line x1="0" y1="38" x2="860" y2="38" stroke="#21262d" stroke-width="1"/>
+  <line x1="0" y1="38" x2="1246" y2="38" stroke="#21262d" stroke-width="1"/>
   <circle cx="20" cy="19" r="6" fill="#ff5f56"/>
   <circle cx="38" cy="19" r="6" fill="#ffbd2e"/>
   <circle cx="56" cy="19" r="6" fill="#27c93f"/>
-  <text x="430" y="24" text-anchor="middle" class="window-header">ics-tools — CLI Demo</text>
+  <text x="623" y="24" text-anchor="middle" class="window-header">ics-tools — CLI Demo</text>
 
   <!-- Terminal Content -->
-  <g class="term-text">
+  <g class="term-text" xml:space="preserve">
   <text x="24" y="72" fill="#7ee787" font-weight="600">$ </text><text x="40" y="72" fill="#f0f6fc" font-weight="600">ics validate examples/demo.ics</text>
   <text x="24" y="94" fill="#3fb950" font-weight="bold">VALID: examples/demo.ics</text>
   <text x="24" y="138" fill="#7ee787" font-weight="600">$ </text><text x="40" y="138" fill="#f0f6fc" font-weight="600">ics list examples/demo.ics --from 2026-01-01 --window 7d</text>
