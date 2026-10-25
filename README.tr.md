@@ -107,6 +107,8 @@ csv_text = export_to_csv(filtered, window_start=date(2026, 1, 1), window_end=dat
 assert "Demo sync" in csv_text
 ```
 
+Takvim birleştirme, filtreleme, CSV dışa aktarımı ve programatik takvim oluşturma gibi daha fazla çalıştırılabilir örnek için [examples/](examples/) dizinini inceleyebilirsiniz.
+
 ## Configuration & options
 
 ### CLI parameters

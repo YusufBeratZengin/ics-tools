@@ -7,9 +7,10 @@ Use Python 3.10 or later. From a checkout, install development tools:
 ```sh
 python -m pip install -e ".[dev]"
 python -m ruff check .
-python -m mypy src
-python -m pytest -q
+python -m mypy src tests examples
+python -m pytest --cov=ics_tools --cov-report=term-missing
 python examples/demo.py
+python examples/merge_calendars.py
 python -m build
 python -m twine check dist/*
 ```
@@ -17,7 +18,7 @@ python -m twine check dist/*
 The editable install uses Hatchling. A network-restricted environment needs the build backend
 and development dependencies provisioned beforehand. Do not skip quality gates to release.
 Tests use synthetic data without network access; pytest's optional cache plugin is disabled
-so the suite also runs in restricted workspaces. CI checks Python 3.10–3.13 on Linux and Windows.
+so the suite also runs in restricted workspaces. CI checks Python 3.10–3.13 on Linux, Windows, and macOS.
 Keep runtime dependencies empty, public APIs compatible, and both README languages aligned.
 Use Conventional Commits (`fix:`, `feat:`, `docs:`, `test:`, `ci:`, `chore:`).
 Add a regression test that fails before fixing a defect.

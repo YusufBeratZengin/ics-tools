@@ -78,6 +78,41 @@ class TestTimezone(unittest.TestCase):
         self.assertEqual(dt.utcoffset(), timedelta(hours=4))
         self.assertEqual(dt.tzname(), "TESTSTD")
 
+    def test_embedded_vtimezone_with_daylight_savings(self):
+        vtz = Component(name="VTIMEZONE")
+        vtz.add_property("TZID", "CustomTz/Seasonal")
+
+        std = Component(name="STANDARD")
+        std.add_property("TZOFFSETFROM", "+0200")
+        std.add_property("TZOFFSETTO", "+0100")
+        std.add_property("TZNAME", "CST_STD")
+        vtz.add_component(std)
+
+        dst = Component(name="DAYLIGHT")
+        dst.add_property("TZOFFSETFROM", "+0100")
+        dst.add_property("TZOFFSETTO", "+0200")
+        dst.add_property("TZNAME", "CST_DST")
+        vtz.add_component(dst)
+
+        resolver = TimezoneResolver([vtz])
+        resolved = resolver.resolve("CustomTz/Seasonal")
+        self.assertIsInstance(resolved, EmbeddedVTimezone)
+        assert isinstance(resolved, EmbeddedVTimezone)
+
+        # Summer (July) -> Daylight savings
+        summer_dt = datetime(2026, 7, 15, 12, 0, tzinfo=resolved)
+        self.assertEqual(summer_dt.utcoffset(), timedelta(hours=2))
+        self.assertEqual(summer_dt.dst(), timedelta(hours=1))
+        self.assertEqual(summer_dt.tzname(), "CST_DST")
+
+        # Winter (December) -> Standard time
+        winter_dt = datetime(2026, 12, 15, 12, 0, tzinfo=resolved)
+        self.assertEqual(winter_dt.utcoffset(), timedelta(hours=1))
+        self.assertEqual(winter_dt.dst(), timedelta(0))
+        self.assertEqual(winter_dt.tzname(), "CST_STD")
+
+        self.assertIn("EmbeddedVTimezone", repr(resolved))
+
 
 if __name__ == "__main__":
     unittest.main()

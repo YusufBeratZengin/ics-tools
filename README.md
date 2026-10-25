@@ -107,6 +107,8 @@ csv_text = export_to_csv(filtered, window_start=date(2026, 1, 1), window_end=dat
 assert "Demo sync" in csv_text
 ```
 
+For more complete runnable examples (merging, filtering, CSV export, and programmatic calendar creation), see the [examples/](examples/) directory.
+
 ## Configuration & options
 
 ### CLI parameters

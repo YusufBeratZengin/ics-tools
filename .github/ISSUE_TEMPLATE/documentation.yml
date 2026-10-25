@@ -1,0 +1,27 @@
+name: Documentation improvement
+description: Report missing, incorrect, or unclear documentation or examples.
+labels: [documentation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve ics-tools documentation!
+  - type: input
+    id: location
+    attributes:
+      label: Documentation location
+      description: URL or file path (e.g., README.md, CONTRIBUTING.md, examples/...)
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is unclear, inaccurate, or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement or replacement
+    validations:
+      required: false

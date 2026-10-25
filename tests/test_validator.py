@@ -153,6 +153,42 @@ class TestValidator(unittest.TestCase):
         self.assertTrue(res_no_sum.is_valid)
         self.assertTrue(len(res_no_sum.warnings) > 0)
 
+    def test_rrule_and_datetime_validation_edge_cases(self):
+        # Malformed part missing '='
+        bad_part = (
+            "BEGIN:VCALENDAR\r\nPRODID:-//Test//EN\r\nVERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\nUID:1\r\nDTSTART:20260101T090000Z\r\n"
+            "RRULE:FREQ=DAILY;INVALIDPART\r\nSUMMARY:T\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        self.assertFalse(validate_calendar(bad_part).is_valid)
+
+        # Non-integer INTERVAL
+        bad_interval_str = (
+            "BEGIN:VCALENDAR\r\nPRODID:-//Test//EN\r\nVERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\nUID:1\r\nDTSTART:20260101T090000Z\r\n"
+            "RRULE:FREQ=DAILY;INTERVAL=invalid\r\nSUMMARY:T\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        self.assertFalse(validate_calendar(bad_interval_str).is_valid)
+
+        # Non-integer COUNT
+        bad_count_str = (
+            "BEGIN:VCALENDAR\r\nPRODID:-//Test//EN\r\nVERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\nUID:1\r\nDTSTART:20260101T090000Z\r\n"
+            "RRULE:FREQ=DAILY;COUNT=three\r\nSUMMARY:T\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        self.assertFalse(validate_calendar(bad_count_str).is_valid)
+
+        # Malformed DATE-TIME format
+        bad_dt = (
+            "BEGIN:VCALENDAR\r\nPRODID:-//Test//EN\r\nVERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\nUID:1\r\nDTSTART:invalid-date-format\r\nSUMMARY:T\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        self.assertFalse(validate_calendar(bad_dt).is_valid)
+
 
 if __name__ == "__main__":
     unittest.main()

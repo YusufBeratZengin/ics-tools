@@ -316,3 +316,21 @@ class TestStreamSpec(unittest.TestCase):
                     ]
                 )
                 self.assertFalse(validate_calendar(calendar).is_valid)
+
+    def test_csv_export_with_recurring_overrides(self):
+        fixture_path = Path(__file__).parent / "fixtures" / "recurring_override.ics"
+        cal = parse_calendar(fixture_path)
+        csv_out = export_to_csv(cal, window_start=date(2026, 11, 1), window_end=date(2026, 11, 10))
+        self.assertIn("Rescheduled Design Sync", csv_out)
+        self.assertIn("Daily Design Sync", csv_out)
+
+    def test_filter_with_recurring_overrides(self):
+        from ics_tools.filter import filter_calendar
+        fixture_path = Path(__file__).parent / "fixtures" / "recurring_override.ics"
+        cal = parse_calendar(fixture_path)
+        # Window with no occurrences
+        filtered_empty = filter_calendar(cal, from_dt=date(2026, 1, 1), to_dt=date(2026, 1, 2))
+        self.assertEqual(len(filtered_empty.events), 0)
+        # Window containing the occurrences
+        filtered = filter_calendar(cal, from_dt=date(2026, 11, 1), to_dt=date(2026, 11, 10))
+        self.assertEqual(len(filtered.events), 2)

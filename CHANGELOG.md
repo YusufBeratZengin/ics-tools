@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Dedicated standalone examples in `examples/` (`merge_calendars.py`, `filter_and_export_csv.py`, `create_recurring_calendar.py`, `team_schedule.ics`, and `examples/README.md`).
+- Documentation improvement issue template (`.github/ISSUE_TEMPLATE/documentation.yml`).
+- Unit tests for data models (`Property`, `Component`, `Event`, `Calendar`), CLI edge cases, validator constraints, and `EmbeddedVTimezone` DST behavior.
 - CLI regression coverage for invalid dates, durations, timezones, regexes, missing arguments, stdin, and output errors.
 - Standard input (`-`) support for `validate` and `merge`, including mixed stdin/file inputs.
 - Regression tests for frequency filters, ordinal rules, empty periods, CSV streams, and sub-day CLI windows.
@@ -28,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ruff and mypy errors without changing the established error-reporting and timezone fallback boundaries.
 
 ### Changed
+- Updated `CONTRIBUTING.md` checks and CI environment description to reflect macOS coverage and full test runs.
+- Linked `examples/` guide and runnable scripts in both English and Turkish READMEs.
 - Clarified pending PyPI publication and stdin/error behavior in both READMEs; aligned their headings and polished Turkish wording.
 - Standardized build metadata on Hatchling with SPDX licensing and complete development dependencies.
 

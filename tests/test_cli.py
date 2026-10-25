@@ -361,6 +361,68 @@ class TestCLIUsageErrors(unittest.TestCase):
                 self.assertIn("Error:", error.getvalue())
                 self.assertNotIn("Traceback", error.getvalue())
 
+    def test_list_and_csv_window_with_datetime_start(self):
+        for command in ("list", "to-csv"):
+            with (
+                self.subTest(command=command),
+                redirect_stdout(io.StringIO()) as output,
+                redirect_stderr(io.StringIO()) as error,
+            ):
+                self.assertEqual(
+                    main([command, "examples/demo.ics", "--from", "2026-01-01T09:00:00Z", "--window", "24h"]),
+                    0,
+                )
+                self.assertEqual(error.getvalue(), "")
+                self.assertIn("Demo sync", output.getvalue())
+
+    def test_list_and_csv_invalid_input_stream_reports_error(self):
+        for command in ("list", "to-csv"):
+            with (
+                self.subTest(command=command),
+                patch("sys.stdin", io.StringIO("not-an-icalendar")),
+                redirect_stderr(io.StringIO()) as error,
+            ):
+                self.assertEqual(main([command, "-"]), 1)
+                self.assertIn("Error parsing iCalendar", error.getvalue())
+                self.assertNotIn("Traceback", error.getvalue())
+
+    def test_list_without_window_or_to_uses_default_window(self):
+        with redirect_stdout(io.StringIO()) as output, redirect_stderr(io.StringIO()) as error:
+            self.assertEqual(main(["list", "examples/demo.ics", "--from", "2026-01-01"]), 0)
+            self.assertEqual(error.getvalue(), "")
+            self.assertIn("Demo sync", output.getvalue())
+
+    def test_to_csv_with_window_without_from_succeeds(self):
+        with redirect_stdout(io.StringIO()) as output, redirect_stderr(io.StringIO()) as error:
+            self.assertEqual(main(["to-csv", "examples/demo.ics", "--window", "7d"]), 0)
+            self.assertEqual(error.getvalue(), "")
+            self.assertIn("UID,Summary", output.getvalue())
+
+    def test_validate_reports_warnings(self):
+        raw = "\r\n".join([
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//CLI test//EN",
+            "CALSCALE:HEBREW",
+            "BEGIN:VEVENT",
+            "UID:warn-event@example.invalid",
+            "DTSTAMP:20260101T000000Z",
+            "DTSTART:20260101T090000Z",
+            "SUMMARY:Warning Calendar",
+            "END:VEVENT",
+            "END:VCALENDAR",
+            "",
+        ])
+        with (
+            patch("sys.stdin", io.StringIO(raw)),
+            redirect_stdout(io.StringIO()) as output,
+            redirect_stderr(io.StringIO()) as error,
+        ):
+            self.assertEqual(main(["validate", "-"]), 0)
+            self.assertEqual(error.getvalue(), "")
+            self.assertIn("VALID: - (1 warnings)", output.getvalue())
+            self.assertIn("Non-standard CALSCALE", output.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
